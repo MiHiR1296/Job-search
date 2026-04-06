@@ -1,0 +1,45 @@
+states:
+  - id: evaluated
+    label: Evaluated
+    aliases: [reviewed]
+    description: Job evaluated, pending apply decision
+
+  - id: applied
+    label: Applied
+    aliases: [submitted]
+    description: Application submitted by candidate
+
+  - id: recruiter_reached
+    label: Recruiter Reached Out
+    aliases: [hr_connect]
+    description: Recruiter or HR contacted candidate
+
+  - id: interview
+    label: Interview
+    aliases: [interviewing]
+    description: Active interview process
+
+  - id: offer
+    label: Offer
+    aliases: [offered]
+    description: Offer received
+
+  - id: rejected
+    label: Rejected
+    aliases: [declined_by_company]
+    description: Rejected by employer
+
+  - id: declined
+    label: Declined
+    aliases: [offer_declined]
+    description: Candidate declined the role
+
+  - id: hold
+    label: On Hold
+    aliases: [paused]
+    description: Process paused by either side
+
+  - id: skip
+    label: Skip
+    aliases: [not_applying]
+    description: Not applying due to low fit or constraints

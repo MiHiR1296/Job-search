@@ -1,0 +1,7 @@
+config/profile.yml
+portals.yml
+cv.md
+output/
+reports/
+node_modules/
+.DS_Store
