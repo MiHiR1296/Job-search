@@ -99,7 +99,56 @@
       <section class="panel">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">3. Lead board</p>
+            <p class="eyebrow">3. Real lead finder</p>
+            <h2>Pull actual businesses by city and niche</h2>
+          </div>
+          <p class="muted">
+            This uses public OpenStreetMap business data as a practical starting
+            point. Results will be strongest for local businesses with decent map
+            or directory coverage.
+          </p>
+        </div>
+
+        <form id="discovery-form" class="lead-form">
+          <div class="lead-form__grid">
+            <label class="field">
+              <span>Search city</span>
+              <input id="discovery-city" type="text" value="Mumbai" />
+            </label>
+            <label class="field">
+              <span>Segment to search</span>
+              <select id="discovery-segment"></select>
+            </label>
+            <label class="field">
+              <span>Radius in km</span>
+              <input id="discovery-radius" type="number" min="5" max="80" value="25" />
+            </label>
+            <label class="field">
+              <span>Max leads</span>
+              <input id="discovery-limit" type="number" min="5" max="30" value="12" />
+            </label>
+          </div>
+          <div class="form-actions">
+            <button id="discovery-button" class="button" type="submit">Find real leads</button>
+            <p class="muted">
+              Best for architects, jewelry, furniture, agencies, and other
+              smaller local businesses.
+            </p>
+          </div>
+        </form>
+
+        <div id="discovery-status" class="status-callout">
+          Run a search to fetch public business listings, then save the best ones
+          into your lead board.
+        </div>
+
+        <div id="discovery-results" class="lead-board"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">4. Lead board</p>
             <h2>Starter opportunities and custom leads</h2>
           </div>
           <p class="muted">
@@ -150,7 +199,7 @@
       <section class="panel generator">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">4. Outreach generator</p>
+            <p class="eyebrow">5. Outreach generator</p>
             <h2>Create a first message and call plan</h2>
           </div>
           <p class="muted">
@@ -205,7 +254,7 @@
       <section class="panel">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">5. Reality check</p>
+            <p class="eyebrow">6. Reality check</p>
             <h2>Can this be automated further?</h2>
           </div>
           <p class="muted">

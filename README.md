@@ -13,6 +13,7 @@ client outreach system tailored to Mihir Botle's skill set:
 
 - Recommends the best small-business client segments to target first
 - Shows practical lead-source searches for each segment
+- Pulls real local businesses from OpenStreetMap / Overpass based on niche and city
 - Maintains a simple in-browser lead board
 - Generates tailored outreach messaging:
   - cold email
@@ -42,6 +43,19 @@ That positioning fits smaller companies such as:
 ## Run locally
 
 No build step is required. Open `index.html` in a browser.
+
+## Real lead discovery notes
+
+The current live lead finder uses public OpenStreetMap data via the Overpass API.
+That means:
+
+- it works best for businesses with map/listing presence
+- results quality depends on how complete the local listing data is
+- it is useful for finding real company names, categories, addresses, websites,
+  phone numbers, and map-based targets to qualify further
+
+This is a practical first real-data layer before adding commercial enrichment
+providers, social/profile scraping, or CRM automation.
 
 ## Next version ideas
 

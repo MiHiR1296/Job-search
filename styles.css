@@ -206,6 +206,7 @@ button {
 
 .segment-list,
 .lead-board,
+.live-leads-grid,
 .roadmap,
 .outreach-panels {
   display: grid;
@@ -218,6 +219,7 @@ button {
 
 .segment-card,
 .lead-card,
+.live-lead-card,
 .copy-block,
 .summary-card {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
@@ -228,6 +230,7 @@ button {
 
 .segment-card__header,
 .lead-card__header,
+.live-lead-card__header,
 .summary-card__header {
   display: flex;
   justify-content: space-between;
@@ -254,7 +257,8 @@ button {
 }
 
 .segment-meta,
-.lead-meta {
+.lead-meta,
+.live-lead-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
@@ -262,7 +266,8 @@ button {
 }
 
 .segment-actions,
-.lead-actions {
+.lead-actions,
+.live-lead-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
@@ -278,6 +283,80 @@ button {
 .lead-board {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   margin-bottom: 1.2rem;
+}
+
+.live-search-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.live-search-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+}
+
+.helper-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.live-search-results {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.live-search-results.empty {
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 20px;
+  padding: 1.1rem 1.2rem;
+  background: rgba(5, 10, 22, 0.3);
+  color: var(--muted);
+}
+
+.status-banner {
+  border-radius: 16px;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(113, 229, 204, 0.24);
+  background: rgba(113, 229, 204, 0.08);
+  color: var(--text);
+}
+
+.status-banner.warning {
+  border-color: rgba(255, 212, 121, 0.25);
+  background: rgba(255, 212, 121, 0.08);
+}
+
+.status-banner.error {
+  border-color: rgba(255, 121, 121, 0.25);
+  background: rgba(255, 121, 121, 0.08);
+}
+
+.live-leads-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.live-lead-card p {
+  margin: 0.65rem 0;
+}
+
+.live-lead-card__meta-lines {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.live-lead-card__meta-lines a {
+  color: var(--accent-2);
+  text-decoration: none;
+}
+
+.live-lead-card__meta-lines a:hover {
+  text-decoration: underline;
 }
 
 .outreach-output {

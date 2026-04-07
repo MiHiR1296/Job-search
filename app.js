@@ -217,12 +217,25 @@ const starterLeads = [
 ];
 
 const storageKey = "freelance-outreach-custom-leads-v1";
+const searchCache = new Map();
+
+const leadSourceMap = {
+  "machine-makers": ["manufacturing", "industrial", "machinery", "equipment", "automation"],
+  architects: ["architect", "interior", "design", "construction"],
+  "furniture-brands": ["furniture", "decor", "interior", "home"],
+  jewellery: ["jewelry", "jewellery", "gold", "diamond", "ornament"],
+  "real-estate": ["real estate", "developer", "builder", "property"],
+  agencies: ["marketing", "branding", "creative", "agency", "digital"],
+};
 
 const state = {
   city: "Mumbai",
   size: "small",
   selectedServices: Object.keys(serviceLabels),
   customLeads: loadCustomLeads(),
+  discoveredLeads: [],
+  searchStatus: "idle",
+  currentSearchLabel: "",
 };
 
 const segmentList = document.querySelector("#segment-list");
@@ -231,6 +244,8 @@ const leadSegmentSelect = document.querySelector("#lead-segment");
 const outreachSegmentSelect = document.querySelector("#outreach-segment");
 const outreachServiceSelect = document.querySelector("#outreach-service");
 const outreachOutput = document.querySelector("#outreach-output");
+const leadSearchResults = document.querySelector("#lead-search-results");
+const leadSearchMeta = document.querySelector("#lead-search-meta");
 
 init();
 
@@ -239,6 +254,7 @@ function init() {
   populateServiceSelect();
   renderSegments();
   renderLeadBoard();
+  renderDiscoveredLeads();
   bindEvents();
 }
 
@@ -246,6 +262,7 @@ function bindEvents() {
   document.querySelector("#preference-form").addEventListener("change", handlePreferences);
   document.querySelector("#lead-form").addEventListener("submit", handleLeadSubmit);
   document.querySelector("#outreach-form").addEventListener("submit", handleOutreachSubmit);
+  document.querySelector("#lead-search-form").addEventListener("submit", handleLeadSearch);
   document.querySelector("#outreach-segment").addEventListener("change", syncServiceOptions);
   document.body.addEventListener("click", handleBodyClick);
 }
@@ -267,6 +284,7 @@ function handlePreferences() {
 
   renderSegments();
   renderLeadBoard();
+  primeSearchDefaults();
 }
 
 function handleLeadSubmit(event) {
@@ -374,6 +392,8 @@ function handleBodyClick(event) {
   const useLeadButton = event.target.closest("[data-use-lead]");
   const useSegmentButton = event.target.closest("[data-use-segment]");
   const deleteLeadButton = event.target.closest("[data-delete-lead]");
+  const importLeadButton = event.target.closest("[data-import-lead]");
+  const leadWebsiteButton = event.target.closest("[data-lead-website]");
 
   if (copyButton) {
     const text = decodeURIComponent(copyButton.getAttribute("data-copy"));
@@ -409,6 +429,14 @@ function handleBodyClick(event) {
     state.customLeads = state.customLeads.filter((lead) => lead.id !== leadId);
     saveCustomLeads();
     renderLeadBoard();
+  }
+
+  if (importLeadButton) {
+    importDiscoveredLead(importLeadButton.getAttribute("data-import-lead"));
+  }
+
+  if (leadWebsiteButton) {
+    window.open(leadWebsiteButton.getAttribute("data-lead-website"), "_blank", "noreferrer");
   }
 }
 
@@ -491,6 +519,69 @@ function renderLeadBoard() {
   leadBoard.innerHTML = cards;
 }
 
+function renderDiscoveredLeads() {
+  if (state.searchStatus === "loading") {
+    leadSearchMeta.textContent = `Searching for ${state.currentSearchLabel}...`;
+    leadSearchResults.innerHTML = `<div class="search-empty">Pulling businesses from public map and search data. This can take a few seconds.</div>`;
+    return;
+  }
+
+  if (state.searchStatus === "error") {
+    leadSearchMeta.textContent = "Search failed";
+    leadSearchResults.innerHTML =
+      '<div class="search-empty">The public lead lookup failed. Try a broader query, a larger city, or search again later.</div>';
+    return;
+  }
+
+  if (!state.discoveredLeads.length) {
+    leadSearchMeta.textContent = "No live leads loaded yet";
+    leadSearchResults.innerHTML =
+      '<div class="search-empty">Run a search for a segment and city to pull real businesses, websites, and fit notes here.</div>';
+    return;
+  }
+
+  leadSearchMeta.textContent = `${state.discoveredLeads.length} live leads found for ${state.currentSearchLabel}`;
+  leadSearchResults.innerHTML = state.discoveredLeads
+    .map((lead) => {
+      const segment = getSegment(lead.segmentId);
+      const imported = state.customLeads.some((item) => item.company === lead.company);
+      const websiteButton = lead.website
+        ? `<button class="ghost" type="button" data-lead-website="${escapeAttribute(lead.website)}">Open website</button>`
+        : "";
+
+      return `
+        <article class="search-card">
+          <div class="lead-card__header">
+            <div>
+              <h3>${escapeHtml(lead.company)}</h3>
+              <p>${escapeHtml(segment.title)}</p>
+            </div>
+            <div class="score">${lead.fitScore}<small>fit score</small></div>
+          </div>
+          <div class="lead-meta">
+            <span class="pill">${escapeHtml(lead.cityLabel)}</span>
+            <span class="pill">${escapeHtml(lead.contactHint)}</span>
+            <span class="pill">${escapeHtml(lead.channel)}</span>
+          </div>
+          <ul>
+            <li><strong>Why it showed up:</strong> ${escapeHtml(lead.signal)}</li>
+            <li><strong>Outreach angle:</strong> ${escapeHtml(lead.notes)}</li>
+            <li><strong>Source:</strong> ${escapeHtml(lead.sourceLabel)}</li>
+            <li><strong>Directory link:</strong> <a href="${escapeAttribute(lead.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(lead.sourceHost)}</a></li>
+          </ul>
+          <div class="lead-actions">
+            <button class="ghost" type="button" data-use-lead="${escapeAttribute(lead.id)}">Use for outreach</button>
+            <button class="button" type="button" data-import-lead="${escapeAttribute(lead.id)}" ${imported ? "disabled" : ""}>
+              ${imported ? "Saved to board" : "Save to lead board"}
+            </button>
+            ${websiteButton}
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function populateSegmentSelects() {
   const options = rankedSegments()
     .map((segment) => `<option value="${segment.id}">${segment.title}</option>`)
@@ -499,6 +590,7 @@ function populateSegmentSelects() {
   leadSegmentSelect.innerHTML = options;
   outreachSegmentSelect.innerHTML = options;
   syncServiceOptions();
+  primeSearchDefaults();
 }
 
 function populateServiceSelect() {
@@ -571,6 +663,40 @@ function fillOutreachForm(lead) {
   document.querySelector(".generator").scrollIntoView({ behavior: "smooth" });
 }
 
+async function handleLeadSearch(event) {
+  event.preventDefault();
+
+  const segmentId = document.querySelector("#search-segment").value;
+  const city = document.querySelector("#search-city").value.trim() || state.city;
+  const maxResults = Number.parseInt(document.querySelector("#search-limit").value, 10) || 8;
+  const segment = getSegment(segmentId);
+  const label = `${segment.title} in ${city}`;
+  const cacheKey = `${segmentId}::${city.toLowerCase()}::${maxResults}`;
+
+  state.searchStatus = "loading";
+  state.currentSearchLabel = label;
+  renderDiscoveredLeads();
+
+  if (searchCache.has(cacheKey)) {
+    state.discoveredLeads = searchCache.get(cacheKey);
+    state.searchStatus = "done";
+    renderDiscoveredLeads();
+    return;
+  }
+
+  try {
+    const places = await fetchRealLeads(segment, city, maxResults);
+    state.discoveredLeads = places;
+    state.searchStatus = "done";
+    searchCache.set(cacheKey, places);
+  } catch (error) {
+    state.searchStatus = "error";
+    state.discoveredLeads = [];
+  }
+
+  renderDiscoveredLeads();
+}
+
 function copyBlock(title, text) {
   return `
     <article class="copy-block">
@@ -616,7 +742,7 @@ function getSegment(segmentId) {
 }
 
 function allLeads() {
-  return [...state.customLeads, ...starterLeads];
+  return [...state.customLeads, ...starterLeads, ...state.discoveredLeads];
 }
 
 function loadCustomLeads() {
@@ -630,6 +756,276 @@ function loadCustomLeads() {
 
 function saveCustomLeads() {
   window.localStorage.setItem(storageKey, JSON.stringify(state.customLeads));
+}
+
+function primeSearchDefaults() {
+  const searchSegment = document.querySelector("#search-segment");
+  const searchCity = document.querySelector("#search-city");
+  if (!searchSegment || !searchCity) {
+    return;
+  }
+
+  if (!searchSegment.innerHTML.trim()) {
+    searchSegment.innerHTML = rankedSegments()
+      .map((segment) => `<option value="${segment.id}">${segment.title}</option>`)
+      .join("");
+  }
+
+  if (!searchCity.value.trim()) {
+    searchCity.value = state.city;
+  }
+}
+
+function importDiscoveredLead(leadId) {
+  const lead = state.discoveredLeads.find((item) => item.id === leadId);
+  if (!lead) {
+    return;
+  }
+
+  const alreadySaved = state.customLeads.some((item) => item.company === lead.company);
+  if (alreadySaved) {
+    return;
+  }
+
+  state.customLeads.unshift({
+    id: `custom-${Date.now()}`,
+    company: lead.company,
+    contact: lead.contactHint,
+    segmentId: lead.segmentId,
+    channel: lead.channel,
+    signal: lead.signal,
+    notes: `${lead.notes} Source: ${lead.sourceLabel}. ${lead.website ? `Website: ${lead.website}` : ""}`.trim(),
+  });
+  saveCustomLeads();
+  renderLeadBoard();
+  renderDiscoveredLeads();
+}
+
+async function fetchRealLeads(segment, city, maxResults) {
+  const queryVariants = buildLeadQueries(segment, city);
+  const batches = [];
+
+  for (const query of queryVariants) {
+    const raw = await fetchOverpass(query);
+    const mapped = normalizePlaceResults(raw, segment, city);
+    if (mapped.length) {
+      batches.push(...mapped);
+    }
+
+    if (batches.length >= maxResults * 2) {
+      break;
+    }
+  }
+
+  const deduped = dedupeLeads(batches)
+    .map((lead) => ({
+      ...lead,
+      fitScore: scoreLiveLead(segment, lead),
+    }))
+    .sort((a, b) => b.fitScore - a.fitScore)
+    .slice(0, maxResults);
+
+  return deduped;
+}
+
+function buildLeadQueries(segment, city) {
+  const terms = leadSourceMap[segment.id] || [segment.title];
+  const cityLabel = city.replaceAll('"', "");
+
+  return terms.map(
+    (term) => `[out:json][timeout:25];
+area["name"="${cityLabel}"]->.searchArea;
+(
+  nwr["name"](area.searchArea);
+  nwr["shop"](area.searchArea);
+  nwr["office"](area.searchArea);
+  nwr["craft"](area.searchArea);
+  nwr["industrial"](area.searchArea);
+  nwr["building"](area.searchArea);
+);
+out tags center;`,
+  ).map((query, index) => ({ query, term: terms[index] }));
+}
+
+async function fetchOverpass(queryConfig) {
+  const endpoint = "https://overpass-api.de/api/interpreter";
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+    },
+    body: queryConfig.query,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Lead search failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  return {
+    term: queryConfig.term,
+    elements: data.elements || [],
+  };
+}
+
+function normalizePlaceResults(raw, segment, city) {
+  return raw.elements
+    .map((element) => {
+      const tags = element.tags || {};
+      const name = tags.name;
+      if (!name || !isLeadMatch(tags, raw.term)) {
+        return null;
+      }
+
+      const website = normalizeWebsite(tags.website || tags.contact_website || tags.url);
+      const sourceUrl = buildSourceUrl(element, website);
+      const sourceHost = getHostLabel(sourceUrl);
+      const signal = buildLiveSignal(tags, raw.term, segment);
+      const notes = buildLiveNotes(tags, segment, website);
+
+      return {
+        id: `live-${element.type}-${element.id}`,
+        company: name,
+        contact: tags["contact:person"] || "",
+        contactHint: inferContactHint(tags, segment),
+        segmentId: segment.id,
+        channel: inferChannel(tags),
+        signal,
+        notes,
+        cityLabel: city,
+        website,
+        sourceLabel: website ? "OpenStreetMap + company website" : "OpenStreetMap business listing",
+        sourceUrl,
+        sourceHost,
+      };
+    })
+    .filter(Boolean);
+}
+
+function isLeadMatch(tags, searchTerm) {
+  const haystack = Object.values(tags).join(" ").toLowerCase();
+  return haystack.includes(searchTerm.toLowerCase());
+}
+
+function normalizeWebsite(url) {
+  if (!url) {
+    return "";
+  }
+
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  return `https://${url}`;
+}
+
+function buildSourceUrl(element, website) {
+  if (website) {
+    return website;
+  }
+
+  const typeLetter = element.type === "node" ? "node" : element.type;
+  return `https://www.openstreetmap.org/${typeLetter}/${element.id}`;
+}
+
+function getHostLabel(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.host;
+  } catch (error) {
+    return "openstreetmap.org";
+  }
+}
+
+function buildLiveSignal(tags, term, segment) {
+  const parts = [];
+  if (tags.description) {
+    parts.push(tags.description);
+  }
+  if (tags.shop) {
+    parts.push(`Tagged as ${tags.shop}`);
+  }
+  if (tags.office) {
+    parts.push(`Office category: ${tags.office}`);
+  }
+  if (!parts.length) {
+    parts.push(`Matched public business data for ${term} under ${segment.title.toLowerCase()}`);
+  }
+  return parts.join(". ");
+}
+
+function buildLiveNotes(tags, segment, website) {
+  const hints = [];
+  if (!website) {
+    hints.push("No website was found in the listing, so start with Instagram, LinkedIn, or a phone-first approach.");
+  } else {
+    hints.push("Review the site visuals before contacting them and mention one improvement idea.");
+  }
+
+  if (tags.phone || tags["contact:phone"]) {
+    hints.push("Phone number is likely available on the listing, so a short call could work after the first message.");
+  }
+
+  hints.push(`Lead with ${segment.offer}.`);
+  return hints.join(" ");
+}
+
+function inferContactHint(tags, segment) {
+  if (tags["contact:person"]) {
+    return tags["contact:person"];
+  }
+
+  if (segment.id === "agencies") {
+    return "Founder / account lead";
+  }
+
+  if (segment.id === "architects") {
+    return "Principal architect";
+  }
+
+  if (segment.id === "real-estate") {
+    return "Marketing manager";
+  }
+
+  return "Founder / owner";
+}
+
+function inferChannel(tags) {
+  if (tags.email || tags["contact:email"] || tags.website || tags["contact:website"]) {
+    return "Email";
+  }
+
+  if (tags.phone || tags["contact:phone"]) {
+    return "Call";
+  }
+
+  return "LinkedIn DM";
+}
+
+function dedupeLeads(leads) {
+  const seen = new Set();
+  return leads.filter((lead) => {
+    const key = lead.company.trim().toLowerCase();
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function scoreLiveLead(segment, lead) {
+  let score = scoreLead(segment, lead.signal, lead.notes);
+  if (lead.website) {
+    score += 2;
+  }
+  if (lead.channel === "Email") {
+    score += 2;
+  }
+  if (lead.notes.toLowerCase().includes("phone")) {
+    score += 1;
+  }
+  return clamp(score, 60, 99);
 }
 
 function clamp(value, min, max) {
