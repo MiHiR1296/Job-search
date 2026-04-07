@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from . import client_finder, outreach, tracker
+from . import client_finder, outreach, tracker, discover
 
 console = Console()
 
@@ -39,6 +39,8 @@ def show_help():
     table.add_column("Description", width=53)
 
     commands = [
+        ("discover", "Auto-discover potential clients with details"),
+        ("discover --save", "Discover leads AND save to tracker"),
         ("markets", "Show all target markets with strategies"),
         ("checklist", "Generate weekly prospecting checklist"),
         ("add-lead", "Add a new potential client/lead"),
@@ -259,6 +261,13 @@ def main():
 
     if command == "help":
         show_help()
+    elif command == "discover":
+        save_flag = "--save" in sys.argv
+        if save_flag:
+            discover.discover_leads(save=True)
+            console.print("\n[green]Leads saved! Run 'python3 -m src.cli leads' to see them.[/green]")
+            console.print("[green]Run 'python3 -m src.cli pipeline' for pipeline view.[/green]")
+        discover.display_discovered_leads()
     elif command == "markets":
         client_finder.display_markets()
     elif command == "checklist":
