@@ -1,0 +1,9 @@
+{
+  "name": "freelance-lead-engine",
+  "version": "0.1.0",
+  "description": "Lead ranking and outreach generator for 3D freelancers/small studios.",
+  "type": "module",
+  "scripts": {
+    "generate": "node src/index.mjs"
+  }
+}
