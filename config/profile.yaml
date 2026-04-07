@@ -1,0 +1,165 @@
+name: "Mihir Botle"
+title: "3D Generalist & Technical Artist"
+email: "mihir.botle@gmail.com"
+phone:
+  - "+91 8692865684"
+  - "+91 9987438689"
+location: "Mumbai, India"
+years_experience: 9
+
+portfolio:
+  behance: "https://www.behance.net/mihirbotle"
+  github: "https://github.com/MiHiR1296"
+  linkedin: "https://linkedin.com/in/mihirbotle"
+  live_demo: "https://mihir1296.github.io/Jewellery-Designer/"
+
+services:
+  - id: "product_renders"
+    name: "3D Product Renders & Visualization"
+    description: "Photorealistic product renders for e-commerce, catalogs, and marketing materials. Includes multiple angles, lighting setups, and lifestyle scenes."
+    keywords:
+      - "product photography alternative"
+      - "3D product render"
+      - "e-commerce visuals"
+      - "catalog imagery"
+    ideal_for:
+      - "E-commerce stores"
+      - "Product-based startups"
+      - "Amazon/Shopify sellers"
+      - "Jewelry brands"
+      - "Furniture companies"
+    deliverables:
+      - "High-res renders (4K+)"
+      - "Multiple camera angles"
+      - "Lifestyle/context scenes"
+      - "Transparent background versions"
+
+  - id: "arch_viz"
+    name: "Architectural Visualization"
+    description: "Interior and exterior 3D visualizations for real estate, interior designers, and architects. Photorealistic renders of spaces before they're built."
+    keywords:
+      - "3D architectural rendering"
+      - "interior visualization"
+      - "property marketing"
+      - "virtual staging"
+    ideal_for:
+      - "Real estate agents"
+      - "Interior designers"
+      - "Architects (small firms)"
+      - "Property developers"
+      - "Home renovation companies"
+    deliverables:
+      - "Interior renders"
+      - "Exterior renders"
+      - "Floor plan visualizations"
+      - "Virtual staging"
+      - "360° panoramic views"
+
+  - id: "explainer_videos"
+    name: "3D Explainer & Product Videos"
+    description: "Animated 3D videos that explain products, processes, or concepts. Perfect for marketing, social media, and investor presentations."
+    keywords:
+      - "3D animation"
+      - "explainer video"
+      - "product video"
+      - "marketing animation"
+    ideal_for:
+      - "Tech startups"
+      - "SaaS companies"
+      - "Manufacturing companies"
+      - "Crowdfunding campaigns"
+      - "Social media marketing"
+    deliverables:
+      - "30-60 second product videos"
+      - "Social media clips"
+      - "Explainer animations"
+      - "Assembly/disassembly animations"
+
+  - id: "interactive_3d_web"
+    name: "Interactive 3D Web Experiences"
+    description: "Browser-based 3D product configurators and interactive visualizations using Three.js. Let customers explore products in 3D directly on your website."
+    keywords:
+      - "3D product configurator"
+      - "interactive 3D"
+      - "WebGL"
+      - "Three.js"
+      - "web 3D viewer"
+    ideal_for:
+      - "E-commerce brands"
+      - "Jewelry brands"
+      - "Furniture companies"
+      - "Fashion accessories"
+      - "Custom product sellers"
+    deliverables:
+      - "Embeddable 3D viewer"
+      - "Product configurator"
+      - "Material/color customization"
+      - "Mobile-responsive"
+
+  - id: "marketing_content"
+    name: "3D Marketing & Social Media Content"
+    description: "Eye-catching 3D visuals and short animations for social media, ads, and branding materials."
+    keywords:
+      - "3D social media content"
+      - "3D ads"
+      - "visual branding"
+      - "3D marketing"
+    ideal_for:
+      - "Marketing agencies"
+      - "Brand managers"
+      - "Social media managers"
+      - "Small businesses"
+    deliverables:
+      - "Social media graphics"
+      - "Ad creatives"
+      - "Brand identity 3D elements"
+      - "Animated posts"
+
+  - id: "small_websites"
+    name: "Modern Websites for Small Businesses"
+    description: "Clean, modern websites with optional 3D elements. Portfolio sites, landing pages, and small business websites."
+    keywords:
+      - "small business website"
+      - "portfolio website"
+      - "landing page"
+    ideal_for:
+      - "Small businesses"
+      - "Freelancers"
+      - "Local shops"
+      - "Restaurants"
+    deliverables:
+      - "Responsive website"
+      - "Landing page"
+      - "Portfolio site"
+      - "Basic SEO setup"
+
+tools_and_skills:
+  3d_software:
+    - "Blender"
+    - "3ds Max"
+    - "Unreal Engine"
+    - "Substance Suite"
+    - "Marvelous Designer"
+    - "DaVinci Resolve"
+  technical:
+    - "Geometry Nodes"
+    - "Python"
+    - "Procedural Modeling"
+    - "PBR Materials"
+    - "Asset Optimization"
+  web:
+    - "Three.js"
+    - "WebGL"
+    - "JavaScript"
+    - "React"
+    - "HTML/CSS"
+    - "Tailwind CSS"
+
+highlights:
+  - "9+ years in 3D industry (FYND, SuperDNA, HERE Technologies, Accenture)"
+  - "Created 10,000+ photorealistic renders for ML training datasets"
+  - "Built interactive 3D jewelry configurator (live demo available)"
+  - "Experience with product visualization for Amazon & Wayfair catalogs"
+  - "Architectural visualization for international offices"
+  - "Employee of the Month and Rising Star awards"
+  - "Proficient in both artistic and technical workflows"
