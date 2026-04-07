@@ -296,6 +296,14 @@ button {
   gap: 1rem;
 }
 
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .helper-text {
   margin: 0;
   color: var(--muted);
@@ -317,7 +325,8 @@ button {
   color: var(--muted);
 }
 
-.status-banner {
+.status-banner,
+.status-callout {
   border-radius: 16px;
   padding: 0.9rem 1rem;
   border: 1px solid rgba(113, 229, 204, 0.24);
@@ -325,12 +334,14 @@ button {
   color: var(--text);
 }
 
-.status-banner.warning {
+.status-banner.warning,
+.status-callout.warning {
   border-color: rgba(255, 212, 121, 0.25);
   background: rgba(255, 212, 121, 0.08);
 }
 
-.status-banner.error {
+.status-banner.error,
+.status-callout.error {
   border-color: rgba(255, 121, 121, 0.25);
   background: rgba(255, 121, 121, 0.08);
 }
@@ -341,6 +352,13 @@ button {
 
 .live-lead-card p {
   margin: 0.65rem 0;
+}
+
+.search-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 1.2rem;
 }
 
 .live-lead-card__meta-lines {

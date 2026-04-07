@@ -109,8 +109,8 @@
           </p>
         </div>
 
-        <form id="discovery-form" class="lead-form">
-          <div class="lead-form__grid">
+        <form id="discovery-form" class="live-search-form">
+          <div class="live-search-grid">
             <label class="field">
               <span>Search city</span>
               <input id="discovery-city" type="text" value="Mumbai" />
@@ -120,29 +120,25 @@
               <select id="discovery-segment"></select>
             </label>
             <label class="field">
-              <span>Radius in km</span>
-              <input id="discovery-radius" type="number" min="5" max="80" value="25" />
-            </label>
-            <label class="field">
               <span>Max leads</span>
               <input id="discovery-limit" type="number" min="5" max="30" value="12" />
             </label>
           </div>
           <div class="form-actions">
             <button id="discovery-button" class="button" type="submit">Find real leads</button>
-            <p class="muted">
+            <p class="helper-text">
               Best for architects, jewelry, furniture, agencies, and other
-              smaller local businesses.
+              smaller local businesses that show up in public map listings.
             </p>
           </div>
         </form>
 
-        <div id="discovery-status" class="status-callout">
+        <div id="discovery-status" class="status-banner">
           Run a search to fetch public business listings, then save the best ones
           into your lead board.
         </div>
 
-        <div id="discovery-results" class="lead-board"></div>
+        <div id="discovery-results" class="live-search-results empty"></div>
       </section>
 
       <section class="panel">

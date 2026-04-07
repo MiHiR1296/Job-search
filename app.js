@@ -244,8 +244,8 @@ const leadSegmentSelect = document.querySelector("#lead-segment");
 const outreachSegmentSelect = document.querySelector("#outreach-segment");
 const outreachServiceSelect = document.querySelector("#outreach-service");
 const outreachOutput = document.querySelector("#outreach-output");
-const leadSearchResults = document.querySelector("#lead-search-results");
-const leadSearchMeta = document.querySelector("#lead-search-meta");
+const leadSearchResults = document.querySelector("#discovery-results");
+const leadSearchMeta = document.querySelector("#discovery-status");
 
 init();
 
@@ -262,7 +262,7 @@ function bindEvents() {
   document.querySelector("#preference-form").addEventListener("change", handlePreferences);
   document.querySelector("#lead-form").addEventListener("submit", handleLeadSubmit);
   document.querySelector("#outreach-form").addEventListener("submit", handleOutreachSubmit);
-  document.querySelector("#lead-search-form").addEventListener("submit", handleLeadSearch);
+  document.querySelector("#discovery-form").addEventListener("submit", handleLeadSearch);
   document.querySelector("#outreach-segment").addEventListener("change", syncServiceOptions);
   document.body.addEventListener("click", handleBodyClick);
 }
@@ -666,9 +666,9 @@ function fillOutreachForm(lead) {
 async function handleLeadSearch(event) {
   event.preventDefault();
 
-  const segmentId = document.querySelector("#search-segment").value;
-  const city = document.querySelector("#search-city").value.trim() || state.city;
-  const maxResults = Number.parseInt(document.querySelector("#search-limit").value, 10) || 8;
+  const segmentId = document.querySelector("#discovery-segment").value;
+  const city = document.querySelector("#discovery-city").value.trim() || state.city;
+  const maxResults = Number.parseInt(document.querySelector("#discovery-limit").value, 10) || 8;
   const segment = getSegment(segmentId);
   const label = `${segment.title} in ${city}`;
   const cacheKey = `${segmentId}::${city.toLowerCase()}::${maxResults}`;
@@ -742,7 +742,7 @@ function getSegment(segmentId) {
 }
 
 function allLeads() {
-  return [...state.customLeads, ...starterLeads, ...state.discoveredLeads];
+  return [...state.customLeads, ...starterLeads];
 }
 
 function loadCustomLeads() {
@@ -759,8 +759,8 @@ function saveCustomLeads() {
 }
 
 function primeSearchDefaults() {
-  const searchSegment = document.querySelector("#search-segment");
-  const searchCity = document.querySelector("#search-city");
+  const searchSegment = document.querySelector("#discovery-segment");
+  const searchCity = document.querySelector("#discovery-city");
   if (!searchSegment || !searchCity) {
     return;
   }
@@ -848,24 +848,38 @@ out tags center;`,
 }
 
 async function fetchOverpass(queryConfig) {
-  const endpoint = "https://overpass-api.de/api/interpreter";
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=UTF-8",
-    },
-    body: queryConfig.query,
-  });
+  const endpoints = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+  ];
 
-  if (!response.ok) {
-    throw new Error(`Lead search failed with status ${response.status}`);
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=UTF-8",
+        },
+        body: queryConfig.query,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Lead search failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      return {
+        term: queryConfig.term,
+        elements: data.elements || [],
+      };
+    } catch (error) {
+      lastError = error;
+    }
   }
 
-  const data = await response.json();
-  return {
-    term: queryConfig.term,
-    elements: data.elements || [],
-  };
+  throw lastError || new Error("Lead search failed");
 }
 
 function normalizePlaceResults(raw, segment, city) {
