@@ -63,4 +63,9 @@ export const freelancerProfile = {
       "jewellery",
     ],
   },
+  salesPlaybook: {
+    targetMarket: "SMEs and boutique firms with active visual marketing needs",
+    qualifier: "Need + budget signal + reachable decision maker + active project pipeline",
+    pilotOffer: "1 paid pilot asset delivered in 7-10 days with clear success metric",
+  },
 };

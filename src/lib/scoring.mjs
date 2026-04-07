@@ -57,6 +57,19 @@ function locationScore(location, profile) {
   return profile.location.toLowerCase().includes("india") ? 0.8 : 0.7;
 }
 
+function fitTier(totalScore) {
+  if (totalScore >= 92) return "A+";
+  if (totalScore >= 84) return "A";
+  if (totalScore >= 75) return "B";
+  return "C";
+}
+
+function confidenceFromLead(lead) {
+  if (lead.verificationLevel === "official-website") return "high";
+  if (lead.verificationLevel === "directory-cross-checked") return "medium";
+  return "low";
+}
+
 function weighted(componentScores) {
   return (
     componentScores.segmentFit * WEIGHTS.segmentFit +
@@ -97,7 +110,13 @@ export function evaluateLead(lead, profile) {
     reasons.push("Moderate fit; keep in secondary outreach pipeline.");
   }
 
-  return { totalScore, componentScores, reasons };
+  return {
+    totalScore,
+    fitTier: fitTier(totalScore),
+    confidence: confidenceFromLead(lead),
+    componentScores,
+    reasons,
+  };
 }
 
 export function rankLeads(leads, profile) {
@@ -107,6 +126,9 @@ export function rankLeads(leads, profile) {
       return {
         ...lead,
         fitScore: scored.totalScore,
+        fitTier: scored.fitTier,
+        confidence: scored.confidence,
+        componentScores: scored.componentScores,
         reasons: scored.reasons,
       };
     })
