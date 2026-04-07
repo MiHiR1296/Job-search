@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('main.find') }}" class="btn btn-primary">Find New Clients</a>
+{% endblock %}
+
+{% block content %}
+<!-- Stats row -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ total }}</div>
+    <div class="stat-label">Total Leads</div>
+  </div>
+  <div class="stat-card stat-new">
+    <div class="stat-value">{{ new_leads }}</div>
+    <div class="stat-label">New</div>
+  </div>
+  <div class="stat-card stat-emailed">
+    <div class="stat-value">{{ emailed }}</div>
+    <div class="stat-label">Emailed</div>
+  </div>
+  <div class="stat-card stat-called">
+    <div class="stat-value">{{ called }}</div>
+    <div class="stat-label">Called</div>
+  </div>
+  <div class="stat-card stat-converted">
+    <div class="stat-value">{{ converted }}</div>
+    <div class="stat-label">Converted</div>
+  </div>
+</div>
+
+<div class="two-col-grid">
+  <!-- Top leads -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Top Scored Leads</h2>
+      <a href="{{ url_for('main.leads') }}" class="card-action">View all →</a>
+    </div>
+    {% if top_leads %}
+      <div class="lead-list">
+        {% for lead in top_leads %}
+          <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" class="lead-row">
+            <div class="lead-row-left">
+              <div class="score-badge score-{{ 'high' if lead.match_score >= 70 else ('mid' if lead.match_score >= 50 else 'low') }}">
+                {{ lead.match_score }}
+              </div>
+              <div>
+                <div class="lead-name">{{ lead.name }}</div>
+                <div class="lead-meta">{{ lead.business_type }} · {{ lead.city or '—' }}</div>
+              </div>
+            </div>
+            <span class="badge {{ status_labels[lead.status][1] }}">{{ status_labels[lead.status][0] }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No leads yet.</p>
+        <a href="{{ url_for('main.find') }}" class="btn btn-primary">Find your first client</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Service breakdown -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Leads by Service</h2>
+    </div>
+    <div class="service-bars">
+      {% set max_count = [1] %}
+      {% for s in service_stats %}{% if s.count > max_count[0] %}{% set _ = max_count.append(s.count) %}{% endif %}{% endfor %}
+      {% for s in service_stats %}
+        <div class="service-bar-row">
+          <div class="service-bar-label">{{ s.label }}</div>
+          <div class="service-bar-track">
+            <div class="service-bar-fill" style="width: {{ (s.count / max_count[-1] * 100)|int if max_count[-1] > 0 else 0 }}%"></div>
+          </div>
+          <div class="service-bar-count">{{ s.count }}</div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Quick tips -->
+    <div class="tips-section">
+      <h3 class="tips-title">Quick Start</h3>
+      <ol class="tips-list">
+        <li>Click <strong>Find Clients</strong> to search for small businesses near you</li>
+        <li>Import the best matches into your lead list</li>
+        <li>Open a lead → click <strong>Generate Outreach</strong></li>
+        <li>Copy the email or use the call script to reach out</li>
+        <li>Update the status as you follow up</li>
+      </ol>
+    </div>
+  </div>
+</div>
+{% endblock %}

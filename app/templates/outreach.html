@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Outreach — {{ lead.name }}{% endblock %}
+{% block page_title %}
+  <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" class="back-link">← {{ lead.name }}</a>
+  Outreach Package
+{% endblock %}
+{% block topbar_actions %}
+  <form method="POST" action="{{ url_for('main.generate', lead_id=lead.id) }}">
+    <button type="submit" class="btn btn-ghost btn-sm">Regenerate</button>
+  </form>
+  <span class="badge {{ status_labels[lead.status][1] }}">{{ status_labels[lead.status][0] }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="outreach-page">
+
+  <!-- Tab switcher -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('email', this)">✉ Email</button>
+    <button class="tab-btn" onclick="showTab('call', this)">📞 Call Script</button>
+  </div>
+
+  <!-- Email tab -->
+  <div id="tab-email" class="tab-content active">
+    <div class="card outreach-card-full">
+      <div class="outreach-header-row">
+        <div>
+          <div class="outreach-to">To: <strong>{{ lead.name }}</strong></div>
+          {% if lead.email %}
+            <div class="outreach-to-email">{{ lead.email }}</div>
+          {% else %}
+            <div class="outreach-to-email muted">
+              No email on file — 
+              <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}">add it on the lead page</a>
+            </div>
+          {% endif %}
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="copyText('emailBody')">Copy Email</button>
+      </div>
+
+      <div class="outreach-subject-display">
+        <span class="label">Subject:</span> {{ lead.email_subject }}
+      </div>
+
+      <div class="outreach-body-display" id="emailBody">{{ lead.email_body }}</div>
+
+      <div class="outreach-sig">
+        — {{ profile.name }} · {{ profile.email }} · {{ profile.phone }}
+      </div>
+    </div>
+
+    <!-- Status update shortcut -->
+    <div class="outreach-status-row">
+      <span>Mark as:</span>
+      <form method="POST" action="{{ url_for('main.update_status', lead_id=lead.id) }}" style="display:inline">
+        <button name="status" value="emailed" class="btn btn-sm {{ 'btn-primary' if lead.status != 'emailed' else 'btn-ghost' }}">
+          ✓ Emailed
+        </button>
+      </form>
+      <form method="POST" action="{{ url_for('main.update_status', lead_id=lead.id) }}" style="display:inline">
+        <button name="status" value="replied" class="btn btn-sm {{ 'btn-primary' if lead.status != 'replied' else 'btn-ghost' }}">
+          ↩ Replied
+        </button>
+      </form>
+      <form method="POST" action="{{ url_for('main.update_status', lead_id=lead.id) }}" style="display:inline">
+        <button name="status" value="converted" class="btn btn-sm btn-success {{ 'btn-primary' if lead.status != 'converted' else 'btn-ghost' }}">
+          🎉 Converted
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Call script tab -->
+  <div id="tab-call" class="tab-content">
+    <div class="card outreach-card-full">
+      <div class="outreach-header-row">
+        <div>
+          <div class="outreach-to">Call script for: <strong>{{ lead.name }}</strong></div>
+          {% if lead.phone %}
+            <div class="outreach-to-email">
+              <a href="tel:{{ lead.phone }}">{{ lead.phone }}</a>
+            </div>
+          {% endif %}
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="copyText('callScript')">Copy Script</button>
+      </div>
+
+      {% if lead.call_script %}
+        <div class="call-script-display" id="callScript">{{ lead.call_script }}</div>
+      {% else %}
+        <div class="muted" style="padding:1.5rem 0">
+          No call script generated. 
+          <form method="POST" action="{{ url_for('main.generate', lead_id=lead.id) }}" style="display:inline">
+            <button type="submit" class="btn btn-ghost btn-sm">Generate now</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="outreach-status-row">
+      <span>Mark as:</span>
+      <form method="POST" action="{{ url_for('main.update_status', lead_id=lead.id) }}" style="display:inline">
+        <button name="status" value="called" class="btn btn-sm {{ 'btn-primary' if lead.status != 'called' else 'btn-ghost' }}">
+          ✓ Called
+        </button>
+      </form>
+      <form method="POST" action="{{ url_for('main.update_status', lead_id=lead.id) }}" style="display:inline">
+        <button name="status" value="converted" class="btn btn-sm btn-success">
+          🎉 Converted
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

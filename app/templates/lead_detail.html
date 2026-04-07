@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.name }}{% endblock %}
+{% block page_title %}
+  <a href="{{ url_for('main.leads') }}" class="back-link">← Leads</a>
+  {{ lead.name }}
+{% endblock %}
+{% block topbar_actions %}
+  <span class="badge {{ status_labels[lead.status][1] }} badge-lg">{{ status_labels[lead.status][0] }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="detail-grid">
+
+  <!-- Left column: info + actions -->
+  <div class="detail-left">
+
+    <!-- Business info card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Business Info</h2>
+        <div class="score-badge score-{{ 'high' if lead.match_score >= 70 else ('mid' if lead.match_score >= 50 else 'low') }} score-lg">
+          {{ lead.match_score }}<span class="score-label">/100</span>
+        </div>
+      </div>
+
+      <dl class="info-list">
+        <dt>Type</dt><dd>{{ lead.business_type or '—' }}</dd>
+        <dt>Address</dt><dd>{{ lead.address or '—' }}</dd>
+        <dt>City</dt><dd>{{ lead.city or '—' }}</dd>
+        <dt>Phone</dt>
+        <dd>
+          {% if lead.phone %}
+            <a href="tel:{{ lead.phone }}">{{ lead.phone }}</a>
+          {% else %}—{% endif %}
+        </dd>
+        <dt>Website</dt>
+        <dd>
+          {% if lead.website %}
+            <a href="{{ lead.website }}" target="_blank" rel="noopener">{{ lead.website }}</a>
+          {% else %}—{% endif %}
+        </dd>
+        <dt>Source</dt><dd>{{ lead.source }}</dd>
+        <dt>Added</dt><dd>{{ lead.created_at.strftime('%d %b %Y') if lead.created_at else '—' }}</dd>
+      </dl>
+
+      <!-- Email update -->
+      <div class="email-update-section">
+        <form method="POST" action="{{ url_for('main.update_email', lead_id=lead.id) }}" class="inline-form">
+          <label>Contact Email (for records)</label>
+          <div class="input-with-btn">
+            <input type="email" name="email" value="{{ lead.email or '' }}"
+                   placeholder="contact@business.com" class="form-input" />
+            <button type="submit" class="btn btn-sm btn-secondary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Match info card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Why This Lead?</h2>
+      </div>
+      <div class="match-service">
+        <div class="service-icon">✦</div>
+        <div>
+          <strong>{{ service.label }}</strong>
+          <p class="service-desc">{{ service.description }}</p>
+        </div>
+      </div>
+      <div class="match-reason">{{ lead.match_reason or 'No reason recorded.' }}</div>
+    </div>
+
+    <!-- Status update -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Update Status</h2>
+      </div>
+      <form method="POST" action="{{ url_for('main.update_status', lead_id=lead.id) }}" class="status-form">
+        <div class="status-buttons">
+          {% for key, (label, cls) in status_labels.items() %}
+            <button type="submit" name="status" value="{{ key }}"
+                    class="btn btn-sm {{ 'btn-primary' if lead.status == key else 'btn-ghost' }} status-btn">
+              {{ label }}
+            </button>
+          {% endfor %}
+        </div>
+      </form>
+    </div>
+
+    <!-- Notes -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Notes</h2>
+      </div>
+      <form method="POST" action="{{ url_for('main.update_notes', lead_id=lead.id) }}">
+        <textarea name="notes" class="form-textarea" rows="4"
+                  placeholder="Call notes, follow-up reminders, anything…">{{ lead.notes or '' }}</textarea>
+        <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:0.5rem">Save Notes</button>
+      </form>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="card card-danger">
+      <form method="POST" action="{{ url_for('main.delete_lead', lead_id=lead.id) }}"
+            onsubmit="return confirm('Remove {{ lead.name }} from your leads?')">
+        <button type="submit" class="btn btn-danger btn-sm">Remove This Lead</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right column: outreach -->
+  <div class="detail-right">
+    <div class="card outreach-card">
+      <div class="card-header">
+        <h2 class="card-title">Outreach</h2>
+        {% if lead.outreach_generated_at %}
+          <span class="generated-at">Generated {{ lead.outreach_generated_at.strftime('%d %b %Y') }}</span>
+        {% endif %}
+      </div>
+
+      {% if lead.email_body %}
+        <div class="outreach-preview">
+          <div class="outreach-section">
+            <div class="outreach-section-label">Email Subject</div>
+            <div class="outreach-subject">{{ lead.email_subject }}</div>
+          </div>
+          <div class="outreach-section">
+            <div class="outreach-section-label">Email Body (preview)</div>
+            <div class="outreach-body-preview">{{ lead.email_body[:300] }}…</div>
+          </div>
+        </div>
+        <div class="outreach-actions">
+          <a href="{{ url_for('main.outreach_view', lead_id=lead.id) }}" class="btn btn-primary">
+            View Full Outreach
+          </a>
+          <form method="POST" action="{{ url_for('main.generate', lead_id=lead.id) }}" style="display:inline">
+            <button type="submit" class="btn btn-ghost btn-sm">Regenerate</button>
+          </form>
+        </div>
+      {% else %}
+        <div class="outreach-empty">
+          <div class="outreach-empty-icon">✉</div>
+          <p>No outreach generated yet.</p>
+          <p class="outreach-hint">
+            Click below to generate a personalised cold email and call script for
+            <strong>{{ lead.name }}</strong>.
+            {% if not "OPENAI_API_KEY" in [''] %}
+              Uses AI if your OpenAI key is set, otherwise uses smart templates.
+            {% endif %}
+          </p>
+          <form method="POST" action="{{ url_for('main.generate', lead_id=lead.id) }}">
+            <button type="submit" class="btn btn-primary btn-lg">Generate Outreach</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

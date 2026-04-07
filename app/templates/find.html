@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Find Clients{% endblock %}
+{% block page_title %}Find Potential Clients{% endblock %}
+
+{% block content %}
+<div class="card search-card">
+  <p class="search-intro">
+    Search for small businesses in any city. The system scores each result based on how well they match
+    your services, then you can import the best ones and generate personalised outreach.
+  </p>
+
+  <form method="POST" class="search-form" id="searchForm">
+    <div class="form-row">
+      <div class="form-group flex-2">
+        <label for="query">Business type / keyword</label>
+        <input type="text" id="query" name="query" value="{{ query }}"
+               placeholder="e.g. real estate agency, jewelry store, cafe, yoga studio…"
+               class="form-input" required />
+      </div>
+      <div class="form-group flex-1">
+        <label for="location">City / Location</label>
+        <input type="text" id="location" name="location" value="{{ location or 'Mumbai' }}"
+               placeholder="Mumbai" class="form-input" required />
+      </div>
+    </div>
+
+    <details class="api-details">
+      <summary>Google Places API key (optional — uses demo data if blank)</summary>
+      <div class="form-group" style="margin-top:0.75rem">
+        <input type="text" name="api_key" placeholder="AIza..."
+               class="form-input" autocomplete="off" />
+        <p class="form-hint">
+          Get a free key at
+          <a href="https://developers.google.com/maps/documentation/places/web-service/get-api-key" target="_blank">
+            Google Cloud Console
+          </a>. Without a key, demo businesses are shown so you can explore the interface.
+        </p>
+      </div>
+    </details>
+
+    <button type="submit" class="btn btn-primary btn-lg" id="searchBtn">
+      Search for Clients
+    </button>
+  </form>
+</div>
+
+{% if error %}
+  <div class="flash flash-warning">{{ error }}</div>
+{% endif %}
+
+{% if results %}
+<div class="results-header">
+  <h2>{{ results|length }} results found</h2>
+  {% if results %}
+    <!-- Import all button -->
+    <form method="POST" action="{{ url_for('main.import_all') }}" id="importAllForm">
+      <input type="hidden" name="leads_json" id="leadsJson" />
+      <button type="submit" class="btn btn-secondary" onclick="prepareImportAll()">
+        Import All New Leads
+      </button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="results-grid">
+  {% for lead in results %}
+    <div class="result-card {% if lead.already_imported %}result-imported{% endif %}">
+      <div class="result-top">
+        <div class="result-name-row">
+          <h3 class="result-name">{{ lead.name }}</h3>
+          <div class="score-badge score-{{ 'high' if lead.match_score >= 70 else ('mid' if lead.match_score >= 50 else 'low') }}">
+            {{ lead.match_score }}
+          </div>
+        </div>
+        <div class="result-type">{{ lead.business_type }}</div>
+        <div class="result-address">📍 {{ lead.address }}</div>
+
+        {% if lead.phone %}
+          <div class="result-contact">📞 {{ lead.phone }}</div>
+        {% endif %}
+        {% if lead.website %}
+          <div class="result-contact">
+            🌐 <a href="{{ lead.website }}" target="_blank" rel="noopener">{{ lead.website|truncate(40) }}</a>
+          </div>
+        {% endif %}
+
+        <div class="result-service-tag">
+          Best fit:
+          {% for s in services %}{% if s.id == lead.matched_service_id %}<strong>{{ s.label }}</strong>{% endif %}{% endfor %}
+        </div>
+        <div class="result-reason">{{ lead.match_reason }}</div>
+      </div>
+
+      <div class="result-actions">
+        {% if lead.already_imported %}
+          <span class="badge badge-emailed">Already imported</span>
+        {% else %}
+          <form method="POST" action="{{ url_for('main.import_lead') }}">
+            <input type="hidden" name="place_id" value="{{ lead.place_id }}" />
+            <input type="hidden" name="name" value="{{ lead.name }}" />
+            <input type="hidden" name="business_type" value="{{ lead.business_type }}" />
+            <input type="hidden" name="address" value="{{ lead.address }}" />
+            <input type="hidden" name="city" value="{{ lead.city }}" />
+            <input type="hidden" name="website" value="{{ lead.website }}" />
+            <input type="hidden" name="phone" value="{{ lead.phone }}" />
+            <input type="hidden" name="email" value="" />
+            <input type="hidden" name="match_score" value="{{ lead.match_score }}" />
+            <input type="hidden" name="matched_service_id" value="{{ lead.matched_service_id }}" />
+            <input type="hidden" name="match_reason" value="{{ lead.match_reason }}" />
+            <input type="hidden" name="source" value="{{ lead.source }}" />
+            <button type="submit" class="btn btn-primary btn-sm">Import & Generate Outreach</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<!-- Hidden data for Import All -->
+<script>
+  const ALL_LEADS = {{ results | tojson }};
+  function prepareImportAll() {
+    document.getElementById('leadsJson').value = JSON.stringify(
+      ALL_LEADS.filter(l => !l.already_imported)
+    );
+  }
+</script>
+{% endif %}
+{% endblock %}

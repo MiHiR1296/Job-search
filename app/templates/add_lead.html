@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Add Lead Manually{% endblock %}
+{% block page_title %}
+  <a href="{{ url_for('main.leads') }}" class="back-link">← Leads</a>
+  Add Lead Manually
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 640px; margin: 0 auto;">
+  <p class="search-intro">
+    Know a specific business you'd like to reach out to? Add them directly here.
+  </p>
+  <form method="POST" class="search-form">
+    <div class="form-row">
+      <div class="form-group flex-2">
+        <label for="name">Business Name *</label>
+        <input type="text" id="name" name="name" class="form-input" required placeholder="Acme Studios" />
+      </div>
+      <div class="form-group flex-1">
+        <label for="business_type">Type</label>
+        <input type="text" id="business_type" name="business_type" class="form-input" placeholder="Interior Designer" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group flex-2">
+        <label for="address">Address</label>
+        <input type="text" id="address" name="address" class="form-input" placeholder="Bandra West, Mumbai" />
+      </div>
+      <div class="form-group flex-1">
+        <label for="city">City</label>
+        <input type="text" id="city" name="city" class="form-input" placeholder="Mumbai" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group flex-1">
+        <label for="phone">Phone</label>
+        <input type="text" id="phone" name="phone" class="form-input" placeholder="+91 9800000000" />
+      </div>
+      <div class="form-group flex-1">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" class="form-input" placeholder="hello@business.com" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="website">Website</label>
+      <input type="url" id="website" name="website" class="form-input" placeholder="https://..." />
+    </div>
+    <div class="form-row">
+      <div class="form-group flex-2">
+        <label for="matched_service_id">Best-fit Service</label>
+        <select id="matched_service_id" name="matched_service_id" class="form-select">
+          {% for s in services %}
+            <option value="{{ s.id }}">{{ s.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group flex-1">
+        <label for="match_score">Match Score (0-100)</label>
+        <input type="number" id="match_score" name="match_score" class="form-input"
+               min="0" max="100" value="60" />
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-lg">Add Lead</button>
+  </form>
+</div>
+{% endblock %}
