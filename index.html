@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Freelance Client Outreach Starter</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero__content">
+        <p class="eyebrow">Freelance outreach MVP</p>
+        <h1>Find smaller clients that actually fit your 3D skill set.</h1>
+        <p class="hero__copy">
+          This first version helps you focus on the kind of businesses that are
+          most likely to hire a solo 3D artist or a small studio: companies that
+          need better visuals, clearer product communication, or faster content
+          production without building an in-house team.
+        </p>
+        <div class="hero__chips">
+          <span>3D explainers</span>
+          <span>Archviz</span>
+          <span>Product renders</span>
+          <span>Marketing content</span>
+          <span>Small websites</span>
+        </div>
+      </div>
+      <aside class="profile-card">
+        <h2>Mihir Botle</h2>
+        <p>3D Generalist &amp; Technical Artist</p>
+        <ul>
+          <li>9+ years across production, retail, ML datasets, and product visuals</li>
+          <li>Strong fit for procedural workflows and practical commercial content</li>
+          <li>Portfolio proof in product, machine, retail, and web-interactive work</li>
+        </ul>
+        <div class="profile-card__links">
+          <a href="https://www.linkedin.com/in/mihirbotle/" target="_blank" rel="noreferrer">LinkedIn</a>
+          <a href="https://behance.net/mihirbotle" target="_blank" rel="noreferrer">Behance</a>
+          <a href="https://github.com/MiHiR1296/" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://www.instagram.com/mr.bt1296/" target="_blank" rel="noreferrer">Instagram</a>
+        </div>
+      </aside>
+    </header>
+
+    <main class="layout">
+      <section class="panel controls">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">1. Focus the search</p>
+            <h2>Tell the tool what kind of work you want more of.</h2>
+          </div>
+          <p class="muted">
+            The recommendations below re-rank based on your preferred services and
+            your target city.
+          </p>
+        </div>
+
+        <form id="preference-form" class="preference-form">
+          <label class="field">
+            <span>Target city</span>
+            <input id="city-input" type="text" value="Mumbai" />
+          </label>
+
+          <label class="field">
+            <span>Preferred client size</span>
+            <select id="size-input">
+              <option value="small" selected>Small businesses / lean teams</option>
+              <option value="growing">Growing companies</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </label>
+
+          <fieldset class="service-grid">
+            <legend>Priority services</legend>
+            <label><input type="checkbox" value="3d-explainers" checked /> 3D explainer videos</label>
+            <label><input type="checkbox" value="archviz" checked /> Architecture visualization</label>
+            <label><input type="checkbox" value="product-renders" checked /> Product renders</label>
+            <label><input type="checkbox" value="marketing-content" checked /> Marketing content</label>
+            <label><input type="checkbox" value="small-websites" checked /> Small websites / web-interactive</label>
+          </fieldset>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">2. Best-fit targets</p>
+            <h2>Recommended client segments</h2>
+          </div>
+          <p class="muted">
+            These are ranked for businesses that can benefit from your work without
+            already having a large internal 3D team.
+          </p>
+        </div>
+
+        <div id="segment-list" class="segment-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">3. Lead board</p>
+            <h2>Starter opportunities and custom leads</h2>
+          </div>
+          <p class="muted">
+            The initial list is a fit-based starter board, not a scraped database.
+            Add real companies as you find them.
+          </p>
+        </div>
+
+        <div id="lead-board" class="lead-board"></div>
+
+        <form id="lead-form" class="lead-form">
+          <h3>Add a lead</h3>
+          <div class="lead-form__grid">
+            <label class="field">
+              <span>Company / studio name</span>
+              <input id="lead-company" type="text" placeholder="Example: Urban Nest Studio" required />
+            </label>
+            <label class="field">
+              <span>Contact person</span>
+              <input id="lead-contact" type="text" placeholder="Founder / marketing lead" />
+            </label>
+            <label class="field">
+              <span>Segment</span>
+              <select id="lead-segment"></select>
+            </label>
+            <label class="field">
+              <span>Channel</span>
+              <select id="lead-channel">
+                <option>Email</option>
+                <option>LinkedIn DM</option>
+                <option>Instagram DM</option>
+                <option>Call</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Website / profile signal</span>
+              <input id="lead-signal" type="text" placeholder="Old visuals, weak product demo, static social posts" />
+            </label>
+            <label class="field">
+              <span>Notes</span>
+              <input id="lead-notes" type="text" placeholder="Launching a new product, no recent video work" />
+            </label>
+          </div>
+          <button class="button" type="submit">Save lead</button>
+        </form>
+      </section>
+
+      <section class="panel generator">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">4. Outreach generator</p>
+            <h2>Create a first message and call plan</h2>
+          </div>
+          <p class="muted">
+            Use a lead from the board or fill this out manually.
+          </p>
+        </div>
+
+        <form id="outreach-form" class="outreach-form">
+          <div class="lead-form__grid">
+            <label class="field">
+              <span>Company name</span>
+              <input id="outreach-company" type="text" placeholder="Company name" required />
+            </label>
+            <label class="field">
+              <span>Contact name</span>
+              <input id="outreach-contact" type="text" placeholder="Optional" />
+            </label>
+            <label class="field">
+              <span>Segment</span>
+              <select id="outreach-segment"></select>
+            </label>
+            <label class="field">
+              <span>Main service to pitch</span>
+              <select id="outreach-service"></select>
+            </label>
+            <label class="field">
+              <span>Primary contact channel</span>
+              <select id="outreach-channel">
+                <option>Email</option>
+                <option>LinkedIn DM</option>
+                <option>Instagram DM</option>
+                <option>Call</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Observed business problem</span>
+              <input id="outreach-problem" type="text" placeholder="Hard to explain product, weak visuals, outdated site..." />
+            </label>
+            <label class="field field--full">
+              <span>What did you notice on their website / socials?</span>
+              <textarea id="outreach-note" rows="3" placeholder="Example: Their products look good but they only post flat photos and there is no explanatory video."></textarea>
+            </label>
+          </div>
+          <button class="button" type="submit">Generate outreach</button>
+        </form>
+
+        <div id="outreach-output" class="outreach-output empty">
+          Select or enter a lead to generate a message plan.
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">5. Reality check</p>
+            <h2>Can this be automated further?</h2>
+          </div>
+          <p class="muted">
+            Yes. The current version is intentionally simple and usable right away.
+          </p>
+        </div>
+
+        <div class="roadmap">
+          <article>
+            <h3>What is already possible</h3>
+            <ul>
+              <li>Target small businesses by fit instead of chasing brands that already have full teams.</li>
+              <li>Score leads based on niche, urgency, weak visual presence, and service match.</li>
+              <li>Generate personalized first-touch messaging and call talking points.</li>
+            </ul>
+          </article>
+          <article>
+            <h3>Next layer of automation</h3>
+            <ul>
+              <li>Pull candidate companies from Google Maps, LinkedIn, Instagram, or industry directories.</li>
+              <li>Enrich websites and social profiles to detect weak visuals, missing video, or launch activity.</li>
+              <li>Generate portfolio-aware messages using your best matching case studies.</li>
+            </ul>
+          </article>
+          <article>
+            <h3>Later studio-grade version</h3>
+            <ul>
+              <li>Full CRM with statuses, reminders, notes, and proposal tracking.</li>
+              <li>Automated follow-up sequences and campaign analytics.</li>
+              <li>Client-fit scoring tuned with real reply and conversion data.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
