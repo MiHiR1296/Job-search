@@ -5,3 +5,5 @@ output/
 reports/
 node_modules/
 .DS_Store
+tools/autofill/profile.autofill.json
+tools/autofill/generated-loader.js

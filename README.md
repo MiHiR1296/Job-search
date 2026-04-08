@@ -74,6 +74,19 @@ Use `modes/tailored-cv.md` to produce:
 - revised summary
 - bullet rewrites with measurable impact
 
+### 4) Assisted apply form filling
+
+Use the autofill helper for external portal forms:
+
+- Setup: `docs/AUTOFILL.md`
+- Generate personal loader:
+  - `node tools/autofill/generate-loader.mjs`
+- In browser console on the application page:
+  - run `tools/autofill/generated-loader.js`
+  - run `tools/autofill/form-autofill.js`
+
+This fills common fields but does **not** auto-submit.
+
 ---
 
 ## Project Structure
@@ -86,6 +99,7 @@ Use `modes/tailored-cv.md` to produce:
 ├── data/
 │   └── applications.md
 ├── docs/
+│   ├── AUTOFILL.md
 │   ├── CUSTOMIZATION.md
 │   ├── SETUP.md
 │   └── WORKFLOW.md
@@ -97,6 +111,12 @@ Use `modes/tailored-cv.md` to produce:
 │   ├── pipeline.md
 │   ├── scan-india.md
 │   └── tailored-cv.md
+├── tools/
+│   └── autofill/
+│       ├── form-autofill.js
+│       ├── generate-loader.mjs
+│       ├── load-profile-and-fill.js
+│       └── profile.autofill.example.json
 ├── templates/
 │   ├── evaluation-rubric.india.yml
 │   ├── portals.india.example.yml

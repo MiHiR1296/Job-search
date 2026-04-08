@@ -41,3 +41,20 @@ Open `templates/evaluation-rubric.india.yml` and set:
 2. Evaluate and decide
 3. Tailor CV + apply
 4. Update tracker and follow-ups
+
+## 6) Assisted application form filling
+
+To speed up repetitive portal forms while keeping control:
+
+1. Open `docs/AUTOFILL.md`
+2. Create `tools/autofill/profile.autofill.json` from the example
+3. Run:
+
+```bash
+node tools/autofill/generate-loader.mjs
+```
+
+4. In browser devtools console on an application form:
+   - run `generated-loader.js`
+   - run `form-autofill.js`
+5. Review everything, then submit manually
