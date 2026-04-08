@@ -10,6 +10,7 @@ import com.careerops.mobile.data.PackRepository
 import com.careerops.mobile.data.ProfileStore
 import com.careerops.mobile.llm.LocalLlmEngine
 import com.careerops.mobile.llm.StubLocalLlmEngine
+import com.careerops.mobile.scoring.JobScoringEngine
 import com.careerops.mobile.web.FormSuggestionEngine
 import com.careerops.mobile.web.JobPageExtractor
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,12 @@ data class MainUiState(
     val isGenerating: Boolean = false,
     val statusMessage: String = "",
     val latestPackFolder: String = "",
+    val detectedCompany: String = "",
+    val detectedRole: String = "",
+    val detectedSalaryHint: String = "",
+    val fitScore: Double = 0.0,
+    val recommendation: String = "Review",
+    val recommendationReasons: List<String> = emptyList(),
     val generatedCoverLetter: String = "",
     val generatedResumeHighlights: String = "",
     val formSuggestions: List<FormSuggestion> = emptyList()
@@ -40,7 +47,8 @@ class MainViewModel(
     private val repository: PackRepository,
     private val profileStore: ProfileStore,
     private val llmEngine: LocalLlmEngine = StubLocalLlmEngine(),
-    private val formSuggestionEngine: FormSuggestionEngine = FormSuggestionEngine()
+    private val formSuggestionEngine: FormSuggestionEngine = FormSuggestionEngine(),
+    private val scoringEngine: JobScoringEngine = JobScoringEngine()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -71,8 +79,17 @@ class MainViewModel(
     fun updateJdText(value: String) { _uiState.value = _uiState.value.copy(jdText = value) }
 
     fun updateExtractedPageText(value: String) {
+        val cleaned = JobPageExtractor.cleanExtractedText(value)
+        val detectedCompany = JobPageExtractor.detectCompany(cleaned)
+        val detectedRole = JobPageExtractor.detectRole(cleaned)
+        val detectedSalary = JobPageExtractor.detectSalary(cleaned)
         _uiState.value = _uiState.value.copy(
-            extractedPageText = JobPageExtractor.cleanExtractedText(value)
+            extractedPageText = cleaned,
+            company = if (_uiState.value.company.isBlank()) detectedCompany else _uiState.value.company,
+            role = if (_uiState.value.role.isBlank()) detectedRole else _uiState.value.role,
+            detectedCompany = detectedCompany,
+            detectedRole = detectedRole,
+            detectedSalaryHint = detectedSalary
         )
     }
 
@@ -93,8 +110,8 @@ class MainViewModel(
 
     fun generatePack() {
         val state = _uiState.value
-        if (state.company.isBlank() || state.role.isBlank() || state.url.isBlank()) {
-            _uiState.value = state.copy(statusMessage = "Company, role, and URL are required.")
+        if (state.url.isBlank()) {
+            _uiState.value = state.copy(statusMessage = "Job URL is required.")
             return
         }
 
@@ -107,18 +124,26 @@ class MainViewModel(
                 else -> ""
             }
 
+            val detectedCompany = if (state.company.isBlank()) JobPageExtractor.detectCompany(effectiveJd) else state.company.trim()
+            val detectedRole = if (state.role.isBlank()) JobPageExtractor.detectRole(effectiveJd) else state.role.trim()
+            val detectedSalary = JobPageExtractor.detectSalary(effectiveJd)
+
             val jobInput = JobInput(
-                company = state.company.trim(),
-                role = state.role.trim(),
+                company = detectedCompany.ifBlank { "Unknown Company" },
+                role = detectedRole.ifBlank { "Unknown Role" },
                 url = state.url.trim(),
-                jdText = effectiveJd
+                jdText = effectiveJd,
+                salaryHint = detectedSalary
             )
+
+            val insight = scoringEngine.score(jobInput, state.profile)
 
             val pack: ApplicationPack = withContext(Dispatchers.IO) {
                 repository.generatePack(jobInput, state.profile)
             }
             val coverLetter = llmEngine.generateCoverLetter(jobInput, state.profile)
             val resumeHighlights = llmEngine.generateResumeHighlights(jobInput, state.profile)
+            val applyDecision = llmEngine.suggestApplyDecision(jobInput, state.profile)
 
             withContext(Dispatchers.IO) {
                 writeGeneratedOutputs(pack.folderName, jobInput, coverLetter, resumeHighlights)
@@ -126,7 +151,15 @@ class MainViewModel(
 
             _uiState.value = _uiState.value.copy(
                 isGenerating = false,
+                company = insight.detectedCompany.ifBlank { jobInput.company },
+                role = insight.detectedRole.ifBlank { jobInput.role },
                 latestPackFolder = pack.folderName,
+                detectedCompany = insight.detectedCompany,
+                detectedRole = insight.detectedRole,
+                detectedSalaryHint = insight.detectedSalaryText.ifBlank { detectedSalary },
+                fitScore = insight.score,
+                recommendation = if (applyDecision == "Strong Apply" && insight.recommendation == "Apply") "Strong Apply" else insight.recommendation,
+                recommendationReasons = insight.reasons,
                 generatedCoverLetter = coverLetter,
                 generatedResumeHighlights = resumeHighlights,
                 statusMessage = "Pack generated at ${pack.folderPath}"

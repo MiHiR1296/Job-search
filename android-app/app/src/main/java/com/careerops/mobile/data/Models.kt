@@ -25,7 +25,8 @@ data class JobInput(
     val company: String,
     val role: String,
     val url: String,
-    val jdText: String = ""
+    val jdText: String = "",
+    val salaryHint: String = ""
 )
 
 data class ApplicationPack(
@@ -40,4 +41,13 @@ data class ApplicationPack(
 data class FormSuggestion(
     val label: String,
     val suggestedValue: String
+)
+
+data class JobInsight(
+    val detectedCompany: String = "",
+    val detectedRole: String = "",
+    val detectedSalaryText: String = "",
+    val score: Double = 0.0,
+    val recommendation: String = "Review",
+    val reasons: List<String> = emptyList()
 )

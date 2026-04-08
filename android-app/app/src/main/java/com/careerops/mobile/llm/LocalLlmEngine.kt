@@ -6,6 +6,7 @@ import com.careerops.mobile.data.JobInput
 interface LocalLlmEngine {
     suspend fun generateCoverLetter(jobInput: JobInput, profile: CandidateProfile): String
     suspend fun generateResumeHighlights(jobInput: JobInput, profile: CandidateProfile): String
+    suspend fun suggestApplyDecision(jobInput: JobInput, profile: CandidateProfile): String
 }
 
 class StubLocalLlmEngine : LocalLlmEngine {
@@ -59,6 +60,17 @@ class StubLocalLlmEngine : LocalLlmEngine {
             ${if (jdSignals.isNotBlank()) jdSignals else "- Not captured yet. Open job in In-App Page tab first."}
             - Refine manually after full local model integration.
         """.trimIndent()
+    }
+
+    override suspend fun suggestApplyDecision(jobInput: JobInput, profile: CandidateProfile): String {
+        val strengths = profile.strengths.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        val text = jobInput.jdText.lowercase()
+        val hits = strengths.count { text.contains(it.lowercase()) }
+        return when {
+            hits >= 3 -> "Strong Apply"
+            hits >= 1 -> "Apply"
+            else -> "Review manually"
+        }
     }
 }
 

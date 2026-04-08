@@ -21,7 +21,8 @@ class PackRepository(private val context: Context) {
             baseDir.mkdirs()
         }
 
-        val packMd = buildPackMarkdown(jobInput, profile, slug)
+        val insight = com.careerops.mobile.scoring.JobScoringEngine().score(jobInput, profile)
+        val packMd = buildPackMarkdown(jobInput, profile, slug, insight)
         val formAnswersMd = buildFormAnswersMarkdown(jobInput, profile)
         val coverLetterMd = buildCoverLetterMarkdown(jobInput)
         val resumeMd = buildResumeMarkdown(jobInput)
@@ -41,11 +42,18 @@ class PackRepository(private val context: Context) {
         )
     }
 
-    private fun buildPackMarkdown(job: JobInput, profile: CandidateProfile, slug: String): String {
+    private fun buildPackMarkdown(
+        job: JobInput,
+        profile: CandidateProfile,
+        slug: String,
+        insight: com.careerops.mobile.data.JobInsight
+    ): String {
         return """
             |# Application Pack - ${job.company} - ${job.role}
             |
             |Source URL: ${job.url}
+            |Fit Score: ${String.format("%.2f", insight.score)} / 5
+            |Recommendation: ${insight.recommendation}
             |
             |## Quick Apply Checklist
             |
@@ -72,6 +80,7 @@ class PackRepository(private val context: Context) {
             |## Notes
             |
             |Generate role-specific cover letter and resume bullets using your LLM workflow.
+            |${if (insight.detectedSalaryText.isNotBlank()) "Detected salary hint: ${insight.detectedSalaryText}" else ""}
         """.trimMargin()
     }
 

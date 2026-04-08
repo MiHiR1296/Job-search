@@ -18,18 +18,20 @@ import androidx.compose.material.icons.filled.Web
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -184,19 +186,59 @@ private fun JobInputTab(
     ) {
         Text("Job Input", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Paste/share a URL. App can also read text from in-app page tab.", style = MaterialTheme.typography.bodyMedium)
+        Text("Paste/share a URL and press Generate. Company/role can be auto-detected from page text.", style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(state.company, onCompany, label = { Text("Company") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            state.company,
+            onCompany,
+            label = { Text("Company (optional)") },
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(state.role, onRole, label = { Text("Role") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            state.role,
+            onRole,
+            label = { Text("Role (optional)") },
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(state.url, onUrl, label = { Text("Job URL") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(state.jdText, onJd, label = { Text("JD text override (optional)") }, modifier = Modifier.fillMaxWidth(), minLines = 4)
+        OutlinedTextField(
+            state.jdText,
+            onJd,
+            label = { Text("JD text override (optional)") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 4
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (state.detectedCompany.isNotBlank() || state.detectedRole.isNotBlank() || state.detectedSalaryHint.isNotBlank()) {
+            Text("Detected from page:", style = MaterialTheme.typography.titleSmall)
+            Spacer(modifier = Modifier.height(6.dp))
+            if (state.detectedCompany.isNotBlank()) {
+                Text("Company: ${state.detectedCompany}", style = MaterialTheme.typography.bodySmall)
+            }
+            if (state.detectedRole.isNotBlank()) {
+                Text("Role: ${state.detectedRole}", style = MaterialTheme.typography.bodySmall)
+            }
+            if (state.detectedSalaryHint.isNotBlank()) {
+                Text("Salary hint: ${state.detectedSalaryHint}", style = MaterialTheme.typography.bodySmall)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AssistChip(
+                onClick = { onJd("") },
+                label = { Text("Clear JD override") },
+                colors = AssistChipDefaults.assistChipColors()
+            )
+        }
         Spacer(modifier = Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onGenerate, modifier = Modifier.weight(1f), enabled = !state.isGenerating) {
-                Text("Generate pack")
+                Text("Generate full output")
             }
             Button(onClick = onStartBubble, modifier = Modifier.weight(1f)) {
                 Text("Start bubble")
@@ -221,6 +263,20 @@ private fun ResultsTab(state: MainUiState) {
     ) {
         Text("Generation Output", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(8.dp))
+        Text("Fit Score: ${String.format("%.2f", state.fitScore)} / 5", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Recommendation: ${state.recommendation}",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+        )
+        if (state.recommendationReasons.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text("Why:", style = MaterialTheme.typography.titleSmall)
+            state.recommendationReasons.forEach { reason ->
+                Text("- $reason", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
         if (state.generatedCoverLetter.isNotBlank()) {
             Text("Cover Letter", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(4.dp))
