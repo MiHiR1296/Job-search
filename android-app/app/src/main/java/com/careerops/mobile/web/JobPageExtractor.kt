@@ -50,4 +50,23 @@ object JobPageExtractor {
         val regex = Regex("""(?i)(₹|rs\.?|inr)\s?[0-9,]+(\s?-\s?(₹|rs\.?|inr)?\s?[0-9,]+)?|\b[0-9]{1,3}\s?lpa\b|\bctc\b""")
         return regex.find(text)?.value?.trim() ?: ""
     }
+
+    fun isLikelyJobUrl(url: String): Boolean {
+        val normalized = url.lowercase().trim()
+        if (normalized.isBlank()) return false
+        val jobSignals = listOf(
+            "/jobs/",
+            "/job/",
+            "linkedin.com/jobs",
+            "naukri.com",
+            "indeed.",
+            "wellfound.com/jobs",
+            "greenhouse.io",
+            "lever.co",
+            "/careers/",
+            "/vacanc",
+            "/openings"
+        )
+        return jobSignals.any { normalized.contains(it) }
+    }
 }

@@ -7,6 +7,7 @@ interface LocalLlmEngine {
     suspend fun generateCoverLetter(jobInput: JobInput, profile: CandidateProfile): String
     suspend fun generateResumeHighlights(jobInput: JobInput, profile: CandidateProfile): String
     suspend fun suggestApplyDecision(jobInput: JobInput, profile: CandidateProfile): String
+    suspend fun summarizeCareerMemory(existingMemory: String, latestNarrative: String, profile: CandidateProfile): String
 }
 
 class StubLocalLlmEngine : LocalLlmEngine {
@@ -71,6 +72,36 @@ class StubLocalLlmEngine : LocalLlmEngine {
             hits >= 1 -> "Apply"
             else -> "Review manually"
         }
+    }
+
+    override suspend fun summarizeCareerMemory(
+        existingMemory: String,
+        latestNarrative: String,
+        profile: CandidateProfile
+    ): String {
+        val sentences = latestNarrative
+            .split(Regex("[\\n\\r\\.]+"))
+            .map { it.trim() }
+            .filter { it.length > 20 }
+            .take(6)
+
+        val condensed = sentences.joinToString("\n- ", prefix = "- ")
+        val prior = existingMemory.trim()
+        return buildString {
+            if (prior.isNotBlank()) {
+                append(prior)
+                append("\n\n")
+            }
+            append("Latest useful points:\n")
+            append(
+                if (condensed.isBlank()) {
+                    "- (No clear points captured. Please dictate with specific achievements.)"
+                } else {
+                    ""
+                }
+            )
+            if (condensed.isNotBlank()) append(condensed)
+        }.trim()
     }
 }
 

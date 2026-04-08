@@ -96,6 +96,40 @@ class LlamaCppLocalLlmEngine(
         return if (local == "Review") fallbackEngine.suggestApplyDecision(jobInput, profile) else local
     }
 
+    override suspend fun summarizeCareerMemory(
+        existingMemory: String,
+        latestNarrative: String,
+        profile: CandidateProfile
+    ): String {
+        val prompt = """
+            <|im_start|>system
+            Convert candidate narrative into durable career memory.
+            Keep only reusable, high-signal details for future applications.
+            <|im_end|>
+            <|im_start|>user
+            Existing memory:
+            ${existingMemory.take(8000)}
+
+            New narrative:
+            ${latestNarrative.take(8000)}
+
+            Return markdown with sections:
+            - Core strengths
+            - Evidence-based achievements
+            - Preferences and constraints
+            - Strong story snippets
+            - Open questions
+            <|im_end|>
+            <|im_start|>assistant
+        """.trimIndent()
+        val local = generateWithLocalModel(prompt)
+        return if (local.isNotBlank()) {
+            local
+        } else {
+            fallbackEngine.summarizeCareerMemory(existingMemory, latestNarrative, profile)
+        }
+    }
+
     private suspend fun generateWithLocalModel(prompt: String): String {
         val modelPath = config.modelPath.trim()
         if (modelPath.isBlank()) return ""

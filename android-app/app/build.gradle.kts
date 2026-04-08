@@ -76,6 +76,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20240303")
     implementation("org.codeshipping:llama-kotlin-android:0.1.0")
+    implementation("androidx.activity:activity-ktx:1.9.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

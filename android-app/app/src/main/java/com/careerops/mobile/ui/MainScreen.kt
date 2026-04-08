@@ -24,6 +24,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChip
@@ -42,7 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.careerops.mobile.data.CandidateProfile
 import com.careerops.mobile.service.BubbleOverlayService
 
-private enum class MainTab { ONBOARD, JOB, WEBVIEW, RESULTS }
+private enum class MainTab { ONBOARD, JOB, WEBVIEW, RESULTS, MEMORY }
 
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
@@ -62,6 +63,13 @@ fun MainScreen(viewModel: MainViewModel) {
             state.latestPackFolder.isNotBlank()
         ) {
             selectedTab = MainTab.RESULTS
+        }
+    }
+    LaunchedEffect(state.shouldAutoStartFromShare, state.url) {
+        if (state.shouldAutoStartFromShare && state.url.isNotBlank()) {
+            viewModel.startAutoGenerateFromUrlOnly()
+            viewModel.onSharedJobAutoStartHandled()
+            selectedTab = MainTab.WEBVIEW
         }
     }
 
@@ -90,12 +98,18 @@ fun MainScreen(viewModel: MainViewModel) {
                     onClick = { selectedTab = MainTab.RESULTS },
                     text = { Text("Results") }
                 )
+                Tab(
+                    selected = selectedTab == MainTab.MEMORY,
+                    onClick = { selectedTab = MainTab.MEMORY },
+                    text = { Text("Memory") }
+                )
             }
 
             when (selectedTab) {
                 MainTab.ONBOARD -> OnboardingTab(
                     profile = state.profile,
-                    onSave = viewModel::saveProfile
+                    onSave = viewModel::saveProfile,
+                    onStartVoice = viewModel::beginVoiceCapture
                 )
                 MainTab.JOB -> JobInputTab(
                     state = state,
@@ -133,6 +147,13 @@ fun MainScreen(viewModel: MainViewModel) {
                     }
                 }
                 MainTab.RESULTS -> ResultsTab(state = state)
+                MainTab.MEMORY -> MemoryTab(
+                    state = state,
+                    onStartVoice = viewModel::beginVoiceCapture,
+                    onClearDraft = viewModel::clearNarrativeDraft,
+                    onEditDraft = viewModel::updateNarrativeDraft,
+                    onSummarize = viewModel::summarizeNarrativeIntoMemory
+                )
             }
         }
     }
@@ -141,7 +162,8 @@ fun MainScreen(viewModel: MainViewModel) {
 @Composable
 private fun OnboardingTab(
     profile: CandidateProfile,
-    onSave: (CandidateProfile) -> Unit
+    onSave: (CandidateProfile) -> Unit,
+    onStartVoice: (String) -> Unit
 ) {
     var draft by remember(profile) { mutableStateOf(profile) }
     Column(
@@ -172,6 +194,7 @@ private fun OnboardingTab(
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(draft.fullName, { draft = draft.copy(fullName = it) }, label = { Text("Full name") }, modifier = Modifier.fillMaxWidth())
+        TextButton(onClick = { onStartVoice("fullName") }) { Text("Dictate full name") }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.email, { draft = draft.copy(email = it) }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
@@ -180,8 +203,18 @@ private fun OnboardingTab(
         OutlinedTextField(draft.location, { draft = draft.copy(location = it) }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.currentTitle, { draft = draft.copy(currentTitle = it) }, label = { Text("Current title") }, modifier = Modifier.fillMaxWidth())
+        TextButton(onClick = { onStartVoice("currentTitle") }) { Text("Dictate current title") }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.targetRole, { draft = draft.copy(targetRole = it) }, label = { Text("Target role") }, modifier = Modifier.fillMaxWidth())
+        TextButton(onClick = { onStartVoice("targetRole") }) { Text("Dictate target role") }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            draft.resumeUri,
+            { draft = draft.copy(resumeUri = it) },
+            label = { Text("Resume file path/URI (optional)") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        TextButton(onClick = { onStartVoice("resumeUri") }) { Text("Dictate resume path/notes") }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.yearsExperience, { draft = draft.copy(yearsExperience = it) }, label = { Text("Years experience") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
@@ -194,8 +227,18 @@ private fun OnboardingTab(
         OutlinedTextField(draft.noticePeriodDays, { draft = draft.copy(noticePeriodDays = it) }, label = { Text("Notice period (days)") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.strengths, { draft = draft.copy(strengths = it) }, label = { Text("Top strengths (comma-separated)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+        TextButton(onClick = { onStartVoice("strengths") }) { Text("Dictate strengths") }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.achievements, { draft = draft.copy(achievements = it) }, label = { Text("Key achievements (comma-separated)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+        TextButton(onClick = { onStartVoice("achievements") }) { Text("Dictate achievements") }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            draft.careerMemory,
+            { draft = draft.copy(careerMemory = it) },
+            label = { Text("Long-term career memory") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 5
+        )
         Spacer(modifier = Modifier.height(12.dp))
         Text("LLM Provider Settings", style = MaterialTheme.typography.titleSmall)
         Spacer(modifier = Modifier.height(8.dp))
@@ -217,7 +260,8 @@ private fun OnboardingTab(
             draft.apiKey,
             { draft = draft.copy(apiKey = it) },
             label = { Text("API Key (encrypted locally via Android Keystore)") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = { onSave(draft) }, modifier = Modifier.fillMaxWidth()) {
@@ -379,5 +423,67 @@ private fun ResultsTab(state: MainUiState) {
                 Spacer(modifier = Modifier.height(4.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun MemoryTab(
+    state: MainUiState,
+    onStartVoice: (String) -> Unit,
+    onClearDraft: () -> Unit,
+    onEditDraft: (String) -> Unit,
+    onSummarize: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Text("Voice Career Memory", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Dictate your story. The app summarizes important long-term points for future applications.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Prompt:", style = MaterialTheme.typography.titleSmall)
+        Text(state.knowledgePrompt, style = MaterialTheme.typography.bodySmall)
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(onClick = { onStartVoice("careerNarrative") }, modifier = Modifier.fillMaxWidth()) {
+            Text("Start voice dictation")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        TextButton(onClick = onClearDraft, modifier = Modifier.fillMaxWidth()) {
+            Text("Clear dictated draft")
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedTextField(
+            value = state.voiceDraftNarrative,
+            onValueChange = onEditDraft,
+            label = { Text("Dictated draft") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 6,
+            readOnly = false
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+            onClick = onSummarize,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.isSummarizingMemory
+        ) {
+            Text("Summarize into long-term memory")
+        }
+        if (state.isSummarizingMemory) {
+            Spacer(modifier = Modifier.height(8.dp))
+            CircularProgressIndicator()
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Current long-term memory", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            if (state.profile.careerMemory.isBlank()) "No memory saved yet." else state.profile.careerMemory,
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }

@@ -15,6 +15,15 @@ This guide is for the new Android app under `android-app/`.
   - app auto-switches to In-App Page to capture JD,
   - then auto-generates score + recommendations + outputs,
   - and auto-switches to Results when done
+- Share-intent autopilot:
+  - when you share a likely job link from other apps (LinkedIn/WhatsApp/Instagram/browser),
+  - app auto-detects it as a job link and starts one-tap flow immediately
+- Resume intake via share:
+  - share a PDF resume to Career Ops Mobile and app stores its URI in profile
+- Voice-first profile capture:
+  - speech-to-text dictation buttons for onboarding fields
+  - dedicated Memory tab to dictate long-form career stories
+  - AI summarizes dictated stories into reusable long-term career memory
 - Hybrid LLM mode:
   - local fallback
   - optional API-key provider mode (user-provided key stored on-device)
@@ -54,11 +63,12 @@ If you later add cloud APIs, keep them optional and off by default.
 1. Share a job URL/text to "Career Ops Mobile" (or open app directly).
 2. Fill profile once in Onboarding tab (including provider mode).
 3. Paste/share job URL.
-4. Preferred: Tap "One-tap URL flow" (URL only) and let app auto-capture + auto-generate.
+4. If the shared URL looks like a job link, app auto-starts one-tap flow without extra taps.
 5. Optional manual path: use In-App Page tab to capture/refresh, then tap "Generate full output".
-6. App creates files in internal storage:
+6. Dictate your profile and stories in Onboarding/Memory tabs; app summarizes durable insights.
+7. App creates files in internal storage:
    - `files/mobile-packs/<date-slug>/...`
-7. Generates:
+8. Generates:
    - fit score + recommendation
    - cover letter
    - resume highlights

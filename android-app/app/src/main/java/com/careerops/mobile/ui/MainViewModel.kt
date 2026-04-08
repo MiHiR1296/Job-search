@@ -8,6 +8,7 @@ import com.careerops.mobile.data.FormSuggestion
 import com.careerops.mobile.data.JobInput
 import com.careerops.mobile.data.PackRepository
 import com.careerops.mobile.data.ProfileStore
+import com.careerops.mobile.llm.HybridLlmEngine
 import com.careerops.mobile.llm.LocalLlmEngine
 import com.careerops.mobile.llm.StubLocalLlmEngine
 import com.careerops.mobile.scoring.JobScoringEngine
@@ -43,7 +44,13 @@ data class MainUiState(
     val generatedCoverLetter: String = "",
     val generatedResumeHighlights: String = "",
     val formSuggestions: List<FormSuggestion> = emptyList(),
-    val autoFlowRequestedAtMs: Long = 0L
+    val autoFlowRequestedAtMs: Long = 0L,
+    val isJobLinkDetected: Boolean = false,
+    val shouldAutoStartFromShare: Boolean = false,
+    val dictationFocusField: String = "",
+    val voiceDraftNarrative: String = "",
+    val isSummarizingMemory: Boolean = false,
+    val knowledgePrompt: String = "Tell me your strongest project story with measurable impact."
 )
 
 class MainViewModel(
@@ -53,6 +60,14 @@ class MainViewModel(
     private val formSuggestionEngine: FormSuggestionEngine = FormSuggestionEngine(),
     private val scoringEngine: JobScoringEngine = JobScoringEngine()
 ) : ViewModel() {
+    private val knowledgePrompts = listOf(
+        "Tell me your strongest project story with measurable impact.",
+        "Describe a challenge you solved that others found difficult.",
+        "What specific tools or pipelines are you strongest with?",
+        "What kind of roles, teams, and work style suit you best?",
+        "What compensation, location, or notice constraints matter most to you?"
+    )
+    private var knowledgePromptIndex = 0
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
@@ -68,7 +83,8 @@ class MainViewModel(
     fun ingestSharedText(sharedText: String?) {
         val text = sharedText?.trim().orEmpty()
         if (text.isBlank()) return
-        val maybeUrl = if (text.startsWith("http")) text else ""
+        val maybeUrl = extractFirstUrl(text)
+        val isLikelyJob = maybeUrl.isNotBlank() && JobPageExtractor.isLikelyJobUrl(maybeUrl)
         _uiState.value = _uiState.value.copy(
             url = maybeUrl.ifBlank { _uiState.value.url },
             extractedPageText = if (maybeUrl.isNotBlank()) "" else _uiState.value.extractedPageText,
@@ -76,7 +92,13 @@ class MainViewModel(
             detectedCompany = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedCompany,
             detectedRole = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedRole,
             detectedSalaryHint = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedSalaryHint,
-            statusMessage = "Shared content imported."
+            isJobLinkDetected = isLikelyJob,
+            shouldAutoStartFromShare = isLikelyJob,
+            statusMessage = if (isLikelyJob) {
+                "Job link detected from share. Starting one-tap flow."
+            } else {
+                "Shared content imported."
+            }
         )
     }
 
@@ -136,6 +158,86 @@ class MainViewModel(
         }
     }
 
+    fun onSharedJobAutoStartHandled() {
+        _uiState.value = _uiState.value.copy(shouldAutoStartFromShare = false)
+    }
+
+    fun onResumeSelected(uri: String?) {
+        if (uri.isNullOrBlank()) return
+        val profile = _uiState.value.profile.copy(resumeUri = uri)
+        saveProfile(profile)
+    }
+
+    fun beginVoiceCapture(field: String) {
+        _uiState.value = _uiState.value.copy(dictationFocusField = field)
+    }
+
+    fun consumeVoiceField(): String {
+        val field = _uiState.value.dictationFocusField
+        _uiState.value = _uiState.value.copy(dictationFocusField = "")
+        return field
+    }
+
+    fun applyVoiceInput(field: String, text: String) {
+        val profile = _uiState.value.profile
+        when (field) {
+            "fullName" -> saveProfile(profile.copy(fullName = text))
+            "currentTitle" -> saveProfile(profile.copy(currentTitle = text))
+            "targetRole" -> saveProfile(profile.copy(targetRole = text))
+            "resumeUri" -> saveProfile(profile.copy(resumeUri = text))
+            "strengths" -> saveProfile(profile.copy(strengths = text))
+            "achievements" -> saveProfile(profile.copy(achievements = text))
+            "careerNarrative" -> {
+                val current = _uiState.value.voiceDraftNarrative
+                val merged = listOf(current, text).filter { it.isNotBlank() }.joinToString("\n\n")
+                _uiState.value = _uiState.value.copy(voiceDraftNarrative = merged)
+            }
+        }
+    }
+
+    fun onVoiceCaptureUnavailable() {
+        _uiState.value = _uiState.value.copy(
+            dictationFocusField = "",
+            statusMessage = "Voice capture unavailable on this device. Please type your answer."
+        )
+    }
+
+    fun clearNarrativeDraft() {
+        _uiState.value = _uiState.value.copy(voiceDraftNarrative = "")
+    }
+
+    fun nextKnowledgePrompt() {
+        knowledgePromptIndex = (knowledgePromptIndex + 1) % knowledgePrompts.size
+        _uiState.value = _uiState.value.copy(knowledgePrompt = knowledgePrompts[knowledgePromptIndex])
+    }
+
+    fun updateNarrativeDraft(value: String) {
+        _uiState.value = _uiState.value.copy(voiceDraftNarrative = value)
+    }
+
+    fun summarizeNarrativeIntoMemory() {
+        val state = _uiState.value
+        val narrative = state.voiceDraftNarrative.trim()
+        if (narrative.isBlank()) {
+            _uiState.value = state.copy(statusMessage = "Please dictate your story first.")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = state.copy(isSummarizingMemory = true, statusMessage = "Summarizing your story...")
+            val summarized = withContext(Dispatchers.IO) {
+                llmEngine.summarizeCareerMemory(state.profile.careerMemory, narrative, state.profile)
+            }
+            val updatedProfile = state.profile.copy(careerMemory = summarized)
+            profileStore.saveProfile(updatedProfile)
+            _uiState.value = _uiState.value.copy(
+                profile = updatedProfile,
+                isSummarizingMemory = false,
+                voiceDraftNarrative = "",
+                statusMessage = "Career memory updated from your voice notes."
+            )
+        }
+    }
+
     fun startAutoGenerateFromUrlOnly() {
         val state = _uiState.value
         if (state.url.isBlank()) {
@@ -150,6 +252,7 @@ class MainViewModel(
             detectedCompany = "",
             detectedRole = "",
             detectedSalaryHint = "",
+            shouldAutoStartFromShare = false,
             statusMessage = "Opening page and extracting JD. Generation will start automatically."
         )
     }
@@ -238,6 +341,11 @@ class MainViewModel(
         File(baseDir, "$slug-resume.md").writeText(
             "# Tailored Resume Notes - ${jobInput.company} - ${jobInput.role}\n\n$resumeHighlights\n"
         )
+    }
+
+    private fun extractFirstUrl(text: String): String {
+        val match = Regex("""https?://[^\s]+""", RegexOption.IGNORE_CASE).find(text)?.value.orEmpty()
+        return match.trim().trimEnd('.', ',', ';', ')', ']', '}')
     }
 }
 

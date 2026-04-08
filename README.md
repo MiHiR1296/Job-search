@@ -137,10 +137,12 @@ The app project now lives in:
 
 Current app in code:
 - share-intent intake for job links/text,
+- deep-link intake (`ACTION_VIEW`) and PDF share intake for resume URI capture,
 - per-job pack generation in app storage,
 - one-tap URL-only flow (auto-opens in-app page, captures text, auto-generates outputs),
 - local on-device LLM runtime path (llama.cpp Android binding; Qwen2.5-1.5B GGUF target),
 - hybrid LLM mode with remote API fallback,
+- voice dictation onboarding/memory capture with long-term memory summarization,
 - floating bubble service stub,
 - accessibility service stub.
 

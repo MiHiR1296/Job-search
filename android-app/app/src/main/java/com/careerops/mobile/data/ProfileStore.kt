@@ -26,8 +26,10 @@ class ProfileStore(private val context: Context) {
             portfolio = prefs[keys.portfolio] ?: "https://your-portfolio.example.com",
             currentTitle = prefs[keys.currentTitle] ?: "",
             targetRole = prefs[keys.targetRole] ?: "",
+            resumeUri = prefs[keys.resumeUri] ?: "",
             strengths = prefs[keys.strengths] ?: "",
             achievements = prefs[keys.achievements] ?: "",
+            careerMemory = prefs[keys.careerMemory] ?: "",
             yearsExperience = prefs[keys.yearsExperience] ?: "",
             noticePeriodDays = prefs[keys.noticePeriodDays] ?: "",
             currentCtcLpa = prefs[keys.currentCtcLpa] ?: "",
@@ -53,8 +55,10 @@ class ProfileStore(private val context: Context) {
             prefs[keys.portfolio] = profile.portfolio
             prefs[keys.currentTitle] = profile.currentTitle
             prefs[keys.targetRole] = profile.targetRole
+            prefs[keys.resumeUri] = profile.resumeUri
             prefs[keys.strengths] = profile.strengths
             prefs[keys.achievements] = profile.achievements
+            prefs[keys.careerMemory] = profile.careerMemory
             prefs[keys.yearsExperience] = profile.yearsExperience
             prefs[keys.noticePeriodDays] = profile.noticePeriodDays
             prefs[keys.currentCtcLpa] = profile.currentCtcLpa
@@ -80,8 +84,10 @@ class ProfileStore(private val context: Context) {
         val portfolio = stringPreferencesKey("portfolio")
         val currentTitle = stringPreferencesKey("current_title")
         val targetRole = stringPreferencesKey("target_role")
+        val resumeUri = stringPreferencesKey("resume_uri")
         val strengths = stringPreferencesKey("strengths")
         val achievements = stringPreferencesKey("achievements")
+        val careerMemory = stringPreferencesKey("career_memory")
         val yearsExperience = stringPreferencesKey("years_experience")
         val noticePeriodDays = stringPreferencesKey("notice_period_days")
         val currentCtcLpa = stringPreferencesKey("current_ctc_lpa")

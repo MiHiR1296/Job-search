@@ -86,6 +86,35 @@ class HybridLlmEngine(
         return localEngine.suggestApplyDecision(jobInput, profile)
     }
 
+    override suspend fun summarizeCareerMemory(
+        existingMemory: String,
+        latestNarrative: String,
+        profile: CandidateProfile
+    ): String {
+        if (shouldUseRemote(profile)) {
+            val prompt = """
+                Convert spoken candidate narrative into durable career memory.
+                Keep only reusable details for future job applications.
+
+                Existing memory:
+                ${existingMemory.take(12000)}
+
+                New narrative:
+                ${latestNarrative.take(12000)}
+
+                Return concise markdown with sections:
+                - Core strengths
+                - Evidence-based achievements
+                - Preferences and constraints
+                - Good portfolio/resume stories
+                - Open questions
+            """.trimIndent()
+            val remote = callRemote(profile, prompt)
+            if (remote.isNotBlank()) return remote
+        }
+        return localEngine.summarizeCareerMemory(existingMemory, latestNarrative, profile)
+    }
+
     private fun shouldUseRemote(profile: CandidateProfile): Boolean {
         return profile.llmProviderMode.equals("api", ignoreCase = true) &&
             profile.apiKey.isNotBlank() &&
