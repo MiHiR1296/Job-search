@@ -5,7 +5,7 @@ Update it after each application and interview to improve future outputs.
 
 ## Identity Snapshot
 
-- Name: Mihir Botle
+- Name: Candidate Name (local-only)
 - Primary Focus: Technical Artist / 3D Generalist / Pipeline-focused artist
 - Experience: 9+ years
 - Location: Mumbai, India

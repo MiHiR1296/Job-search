@@ -209,3 +209,4 @@ Build guide:
 - Compensation is tracked in **LPA** by default.
 - Keep sensitive data out of git (see `.gitignore`).
 - You always decide where to apply; this workflow only helps you reason faster and better.
+- Privacy default: generated personal artifacts are local-first (`config/profile.yml`, `cv.md`, `portals.yml`, `mobile/`), and the Android app currently runs without internet permission.

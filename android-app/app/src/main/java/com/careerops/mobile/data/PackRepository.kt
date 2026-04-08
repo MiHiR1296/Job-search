@@ -101,7 +101,7 @@ class PackRepository(private val context: Context) {
         return """
             |# Cover Letter - ${job.company} - ${job.role}
             |
-            |(Generate using local LLM or remote API with JD + profile + knowledge memory.)
+            |(Generate using local on-device LLM with JD + profile + knowledge memory.)
         """.trimMargin()
     }
 

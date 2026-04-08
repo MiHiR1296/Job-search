@@ -100,13 +100,13 @@ Output:
 
 ```json
 {
-  "company": "Framestore",
-  "role": "Lead Texture Artist",
+  "company": "Example Company",
+  "role": "Example Role",
   "coverLetter": "...",
   "resumeTailoring": "...",
   "formAnswers": {
-    "full_name": "Mihir Botle",
-    "email": "..."
+    "full_name": "Your Name",
+    "email": "you@example.com"
   }
 }
 ```

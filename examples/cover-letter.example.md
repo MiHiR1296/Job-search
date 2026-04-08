@@ -19,5 +19,5 @@ I would value the opportunity to contribute to Hogarth's real-time CGI delivery 
 Thank you for your time and consideration.
 
 Sincerely,  
-Mihir Botle
+[Your Name]
 

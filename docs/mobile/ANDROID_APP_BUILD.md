@@ -10,6 +10,18 @@ This guide is for the new Android app under `android-app/`.
 - Local LLM interface abstraction + stub engine
 - Foreground bubble service skeleton
 - Accessibility service skeleton for future label parsing
+- Offline-first behavior by default (no network permission in manifest)
+
+## Privacy and data safety
+
+Current defaults are privacy-focused:
+
+- Personal data is stored locally on-device in app private storage.
+- Generated packs stay in private app storage (`files/mobile-packs/...`) unless you explicitly export/share.
+- No server sync is implemented in the current Android app code.
+- The app currently has no internet permission, so it cannot send personal data online.
+
+If you later add cloud APIs, keep them optional and off by default.
 
 ## Project path
 
