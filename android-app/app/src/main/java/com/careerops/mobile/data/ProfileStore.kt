@@ -31,7 +31,11 @@ class ProfileStore(private val context: Context) {
             expectedCtcLpa = prefs[keys.expectedCtcLpa] ?: "",
             minimumAcceptableLpa = prefs[keys.minimumAcceptableLpa] ?: "",
             requiresSponsorship = prefs[keys.requiresSponsorship] ?: "No",
-            willingToRelocate = prefs[keys.willingToRelocate] ?: "Yes"
+            willingToRelocate = prefs[keys.willingToRelocate] ?: "Yes",
+            llmProviderMode = prefs[keys.llmProviderMode] ?: "local",
+            apiBaseUrl = prefs[keys.apiBaseUrl] ?: "https://api.openai.com/v1",
+            apiModel = prefs[keys.apiModel] ?: "gpt-4o-mini",
+            apiKey = prefs[keys.apiKey] ?: ""
         )
     }
 
@@ -55,6 +59,10 @@ class ProfileStore(private val context: Context) {
             prefs[keys.minimumAcceptableLpa] = profile.minimumAcceptableLpa
             prefs[keys.requiresSponsorship] = profile.requiresSponsorship
             prefs[keys.willingToRelocate] = profile.willingToRelocate
+            prefs[keys.llmProviderMode] = profile.llmProviderMode
+            prefs[keys.apiBaseUrl] = profile.apiBaseUrl
+            prefs[keys.apiModel] = profile.apiModel
+            prefs[keys.apiKey] = profile.apiKey
         }
     }
 
@@ -77,5 +85,9 @@ class ProfileStore(private val context: Context) {
         val minimumAcceptableLpa = stringPreferencesKey("minimum_acceptable_lpa")
         val requiresSponsorship = stringPreferencesKey("requires_sponsorship")
         val willingToRelocate = stringPreferencesKey("willing_to_relocate")
+        val llmProviderMode = stringPreferencesKey("llm_provider_mode")
+        val apiBaseUrl = stringPreferencesKey("api_base_url")
+        val apiModel = stringPreferencesKey("api_model")
+        val apiKey = stringPreferencesKey("api_key")
     }
 }

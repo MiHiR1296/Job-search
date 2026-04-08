@@ -26,6 +26,8 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -136,6 +138,22 @@ private fun OnboardingTab(
         Text("Fill once, update anytime. Stored locally on device.", style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(16.dp))
 
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = draft.llmProviderMode.equals("local", ignoreCase = true),
+                onClick = { draft = draft.copy(llmProviderMode = "local") },
+                label = { Text("Local mode") },
+                colors = FilterChipDefaults.filterChipColors()
+            )
+            FilterChip(
+                selected = draft.llmProviderMode.equals("api", ignoreCase = true),
+                onClick = { draft = draft.copy(llmProviderMode = "api") },
+                label = { Text("API key mode") },
+                colors = FilterChipDefaults.filterChipColors()
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
         OutlinedTextField(draft.fullName, { draft = draft.copy(fullName = it) }, label = { Text("Full name") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.email, { draft = draft.copy(email = it) }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
@@ -161,6 +179,29 @@ private fun OnboardingTab(
         OutlinedTextField(draft.strengths, { draft = draft.copy(strengths = it) }, label = { Text("Top strengths (comma-separated)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.achievements, { draft = draft.copy(achievements = it) }, label = { Text("Key achievements (comma-separated)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("LLM Provider Settings", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            draft.apiBaseUrl,
+            { draft = draft.copy(apiBaseUrl = it) },
+            label = { Text("API Base URL") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            draft.apiModel,
+            { draft = draft.copy(apiModel = it) },
+            label = { Text("API Model") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            draft.apiKey,
+            { draft = draft.copy(apiKey = it) },
+            label = { Text("API Key (stored locally on device)") },
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = { onSave(draft) }, modifier = Modifier.fillMaxWidth()) {
             Text("Save profile locally")

@@ -7,9 +7,13 @@ This is the Android companion app for mobile-first job applications.
 - Compose-based app shell
 - Share-intent intake for job links/text
 - Per-job application pack generation in app private storage
-- Local LLM interface abstraction (`LocalLlmEngine`) with a stub implementation
+- Hybrid LLM routing:
+  - Local fallback engine
+  - Optional API-key mode (OpenAI-compatible `/chat/completions`)
 - Floating bubble service skeleton
 - Accessibility service skeleton with basic label-to-value autofill mapping
+- In-app job page reading and basic company/role/salary detection
+- Built-in fit score + apply recommendation (local heuristic scoring)
 
 ## Folder structure
 
@@ -39,8 +43,8 @@ Use Android Studio Device File Explorer or add export/share flow in next milesto
 
 ## Next steps
 
-1. Persist editable candidate profile via DataStore.
-2. Replace stub LLM engine with on-device model runtime (MLC LLM or llama.cpp JNI).
+1. Add secure encryption for API key at rest.
+2. Add optional in-app model download/install manager for local runtimes.
 3. Implement actual overlay UI with actionable buttons.
 4. Improve accessibility autofill with better context extraction.
 5. Add export to user-visible Documents folder.

@@ -18,7 +18,11 @@ data class CandidateProfile(
     val expectedCtcLpa: String = "",
     val minimumAcceptableLpa: String = "",
     val requiresSponsorship: String = "No",
-    val willingToRelocate: String = "Yes"
+    val willingToRelocate: String = "Yes",
+    val llmProviderMode: String = "local",
+    val apiBaseUrl: String = "https://api.openai.com/v1",
+    val apiModel: String = "gpt-4o-mini",
+    val apiKey: String = ""
 )
 
 data class JobInput(

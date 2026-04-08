@@ -10,7 +10,10 @@ This guide is for the new Android app under `android-app/`.
 - Local LLM interface abstraction + stub engine
 - Foreground bubble service skeleton
 - Accessibility service skeleton for future label parsing
-- Offline-first behavior by default (no network permission in manifest)
+- One-link job flow with in-app page text capture + auto detect company/role/salary
+- Hybrid LLM mode:
+  - local fallback
+  - optional API-key provider mode (user-provided key stored on-device)
 
 ## Privacy and data safety
 
@@ -19,7 +22,7 @@ Current defaults are privacy-focused:
 - Personal data is stored locally on-device in app private storage.
 - Generated packs stay in private app storage (`files/mobile-packs/...`) unless you explicitly export/share.
 - No server sync is implemented in the current Android app code.
-- The app currently has no internet permission, so it cannot send personal data online.
+- If you choose API mode and provide an API key, prompt content is sent to your configured API endpoint.
 
 If you later add cloud APIs, keep them optional and off by default.
 
@@ -43,15 +46,30 @@ If you later add cloud APIs, keep them optional and off by default.
 ## Current app flow
 
 1. Share a job URL/text to "Career Ops Mobile" (or open app directly).
-2. Fill company + role + URL.
-3. Tap "Generate Mobile Application Pack".
-4. App creates files in internal storage:
+2. Fill profile once in Onboarding tab (including provider mode).
+3. Paste/share job URL.
+4. (Optional) Open In-App Page tab and capture page text.
+5. Tap "Generate full output".
+6. App creates files in internal storage:
    - `files/mobile-packs/<date-slug>/...`
-5. Stub local LLM generates initial cover-letter/resume text.
+7. Generates:
+   - fit score + recommendation
+   - cover letter
+   - resume highlights
+   - form suggestions
+
+## Provider modes
+
+- **Local mode**: no API key required, uses local fallback generator.
+- **API key mode**: user provides:
+  - API Base URL
+  - API model
+  - API key
+  and app calls `/chat/completions` style endpoint.
 
 ## Local LLM options on Android (recommended path)
 
-For on-device inference, use one of:
+For true on-device model inference, use one of:
 
 - **MLC LLM** (good Android support; practical for 1.5B–3B quantized)
 - **llama.cpp via JNI** (more custom work)
