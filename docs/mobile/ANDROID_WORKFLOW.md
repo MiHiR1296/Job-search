@@ -61,3 +61,13 @@ mobile/YYYY-MM-DD-company-role/
 - No portal-specific dependency.
 - Works across LinkedIn, Naukri, company ATS pages, etc.
 - Keeps data portable and reusable even when switching apps.
+
+## Native Android app progress
+
+- Android app scaffold now exists in `android-app/`.
+- Build/run guide: `docs/mobile/ANDROID_APP_BUILD.md`
+- Current MVP supports:
+  - share-intent job intake,
+  - per-job pack generation in app storage,
+  - local LLM interface stubs,
+  - floating bubble + accessibility service skeletons.

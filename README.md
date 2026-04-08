@@ -129,6 +129,22 @@ Use docs:
 - `docs/mobile/ANDROID_WORKFLOW.md` (practical phone flow now)
 - `docs/mobile/FLOATING_BUBBLE_APP_SPEC.md` (future floating-bubble app blueprint)
 
+### 8) Native Android app (in progress)
+
+The app project now lives in:
+
+- `android-app/`
+
+Current MVP in code:
+- share-intent intake for job links/text,
+- per-job pack generation in app storage,
+- local LLM engine interface with stub implementation,
+- floating bubble service stub,
+- accessibility service stub.
+
+Build guide:
+- `docs/mobile/ANDROID_APP_BUILD.md`
+
 ---
 
 ## Project Structure
@@ -144,6 +160,7 @@ Use docs:
 │   ├── AUTOFILL.md
 │   ├── CUSTOMIZATION.md
 │   ├── mobile/
+│   │   ├── ANDROID_APP_BUILD.md
 │   │   ├── ANDROID_WORKFLOW.md
 │   │   └── FLOATING_BUBBLE_APP_SPEC.md
 │   ├── SETUP.md
@@ -167,6 +184,7 @@ Use docs:
 │   ├── scan-india.md
 │   └── tailored-cv.md
 ├── mobile/
+├── android-app/
 ├── tools/
 │   └── autofill/
 │       ├── form-autofill.js
