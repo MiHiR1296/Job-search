@@ -20,6 +20,7 @@ This repository gives you a practical, customizable workflow to:
 - **Profile template** for your goals, constraints, and story
 - **Job tracker format** for applications and interview stages
 - **Reusable AI modes/prompts** for evaluate, scan, CV tailoring, and pipeline updates
+- **Learning loop memory system** that improves resume/cover letter quality after each application
 
 ---
 
@@ -74,7 +75,19 @@ Use `modes/tailored-cv.md` to produce:
 - revised summary
 - bullet rewrites with measurable impact
 
-### 4) Assisted apply form filling
+### 4) Generate a role-specific cover letter
+
+Use `modes/cover-letter.md` with:
+- JD text/URL
+- `cv.md`
+- `config/profile.yml`
+- `knowledge/master-profile.md`
+- `knowledge/application-learnings.md`
+
+Save to:
+- `cover-letters/YYYY-MM-DD-company-role.md`
+
+### 5) Assisted apply form filling
 
 Use the autofill helper for external portal forms:
 
@@ -86,6 +99,14 @@ Use the autofill helper for external portal forms:
   - run `tools/autofill/form-autofill.js`
 
 This fills common fields but does **not** auto-submit.
+
+### 6) Run discovery + learning updates
+
+- Run `modes/discovery-update.md` to ask focused questions and enrich your profile memory.
+- Run `modes/post-application-learnings.md` after each application/interview outcome.
+- Keep updating:
+  - `knowledge/master-profile.md`
+  - `knowledge/application-learnings.md`
 
 ---
 
@@ -103,12 +124,21 @@ This fills common fields but does **not** auto-submit.
 │   ├── CUSTOMIZATION.md
 │   ├── SETUP.md
 │   └── WORKFLOW.md
+├── cover-letters/
 ├── examples/
+│   ├── cover-letter.example.md
 │   ├── cv.example.md
 │   └── job-evaluation.example.md
+├── knowledge/
+│   ├── application-learnings.md
+│   ├── master-profile.md
+│   └── question-bank.md
 ├── modes/
+│   ├── cover-letter.md
+│   ├── discovery-update.md
 │   ├── evaluate-offer.md
 │   ├── pipeline.md
+│   ├── post-application-learnings.md
 │   ├── scan-india.md
 │   └── tailored-cv.md
 ├── tools/

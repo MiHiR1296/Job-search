@@ -5,6 +5,7 @@
 1. Scan portals and company pages.
 2. Add promising jobs to `data/applications.md` as `evaluated`.
 3. Evaluate top 1-3 roles with `modes/evaluate-offer.md`.
+4. Generate role-specific cover letter with `modes/cover-letter.md`.
 
 ## Twice per week (60-90 min)
 
@@ -18,9 +19,21 @@
 2. Send follow-ups where due.
 3. Close stale items to keep funnel clean.
 4. Recalibrate role filters and compensation thresholds.
+5. Run one discovery session (`modes/discovery-update.md`) to improve system memory.
 
 ## Recommended tracker discipline
 
 - One row per role application.
 - Always keep `status`, `next_action`, and `date_added` updated.
 - Use short, objective notes (facts, not emotions).
+
+## Learning loop (system gets better over time)
+
+1. After each application, run `modes/post-application-learnings.md`.
+2. Update:
+   - `knowledge/application-learnings.md`
+   - `knowledge/master-profile.md`
+3. Every few applications, run `modes/discovery-update.md` and answer 6-8 focused questions.
+4. Use updated knowledge when generating:
+   - tailored resume drafts (`modes/tailored-cv.md`)
+   - cover letters (`modes/cover-letter.md`)

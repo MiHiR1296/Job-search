@@ -58,3 +58,17 @@ node tools/autofill/generate-loader.mjs
    - run `generated-loader.js`
    - run `form-autofill.js`
 5. Review everything, then submit manually
+
+## 7) Enable the learning loop (recommended)
+
+Initialize and keep these files updated:
+
+- `knowledge/master-profile.md` (your durable hiring signals)
+- `knowledge/application-learnings.md` (per-application outcomes)
+- `knowledge/question-bank.md` (question prompts to deepen personalization)
+
+Use these modes regularly:
+
+- `modes/cover-letter.md` for role-specific cover letters
+- `modes/discovery-update.md` for targeted Q&A sessions
+- `modes/post-application-learnings.md` after each application outcome
