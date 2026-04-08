@@ -10,13 +10,30 @@ interface LocalLlmEngine {
 
 class StubLocalLlmEngine : LocalLlmEngine {
     override suspend fun generateCoverLetter(jobInput: JobInput, profile: CandidateProfile): String {
+        val jdSignals = jobInput.jdText
+            .split('\n')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(5)
+            .joinToString("; ")
+
+        val strengths = profile.strengths
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(3)
+            .joinToString(", ")
+
         return """
             Dear Hiring Team,
 
             I am excited to apply for ${jobInput.role} at ${jobInput.company}.
             I bring practical experience relevant to this role and a strong track record of delivery.
+            ${if (strengths.isNotBlank()) "My strongest areas for this role are: $strengths." else ""}
 
-            (Replace this with local model output.)
+            ${if (jdSignals.isNotBlank()) "From the job page, key priorities appear to be: $jdSignals" else ""}
+
+            This draft was generated locally on-device and should be refined once a full local model is connected.
 
             Sincerely,
             ${profile.fullName}
@@ -24,11 +41,23 @@ class StubLocalLlmEngine : LocalLlmEngine {
     }
 
     override suspend fun generateResumeHighlights(jobInput: JobInput, profile: CandidateProfile): String {
+        val jdSignals = jobInput.jdText
+            .split('\n')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(8)
+            .joinToString("\n- ", prefix = "- ")
+
         return """
             - Role match highlights for ${jobInput.role}
-            - Tooling/workflow alignment from your profile
-            - Evidence-backed impact bullets
-            (Replace this with local model output.)
+            - Current title: ${profile.currentTitle}
+            - Target role: ${profile.targetRole}
+            - Experience: ${profile.yearsExperience} years
+            - Core strengths: ${profile.strengths.ifBlank { "Add strengths in onboarding tab" }}
+            - Key achievements: ${profile.achievements.ifBlank { "Add achievements in onboarding tab" }}
+            - JD signals captured from page:
+            ${if (jdSignals.isNotBlank()) jdSignals else "- Not captured yet. Open job in In-App Page tab first."}
+            - Refine manually after full local model integration.
         """.trimIndent()
     }
 }

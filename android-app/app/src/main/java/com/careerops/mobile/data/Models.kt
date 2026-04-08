@@ -9,6 +9,9 @@ data class CandidateProfile(
     val github: String = "https://github.com/your-handle",
     val portfolio: String = "https://your-portfolio.example.com",
     val currentTitle: String = "",
+    val targetRole: String = "",
+    val strengths: String = "",
+    val achievements: String = "",
     val yearsExperience: String = "",
     val noticePeriodDays: String = "",
     val currentCtcLpa: String = "",
@@ -32,4 +35,9 @@ data class ApplicationPack(
     val formAnswersMarkdown: String,
     val coverLetterMarkdown: String,
     val resumeMarkdown: String
+)
+
+data class FormSuggestion(
+    val label: String,
+    val suggestedValue: String
 )

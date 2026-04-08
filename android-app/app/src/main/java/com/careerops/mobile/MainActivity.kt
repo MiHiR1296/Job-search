@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
 import com.careerops.mobile.data.PackRepository
+import com.careerops.mobile.data.ProfileStore
 import com.careerops.mobile.ui.MainScreen
 import com.careerops.mobile.ui.MainViewModel
 import com.careerops.mobile.ui.MainViewModelFactory
@@ -15,7 +16,10 @@ import com.careerops.mobile.ui.MainViewModelFactory
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels {
-        MainViewModelFactory(PackRepository(applicationContext))
+        MainViewModelFactory(
+            repository = PackRepository(applicationContext),
+            profileStore = ProfileStore(applicationContext)
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
