@@ -135,10 +135,12 @@ The app project now lives in:
 
 - `android-app/`
 
-Current MVP in code:
+Current app in code:
 - share-intent intake for job links/text,
 - per-job pack generation in app storage,
-- local LLM engine interface with stub implementation,
+- one-tap URL-only flow (auto-opens in-app page, captures text, auto-generates outputs),
+- local on-device LLM runtime path (llama.cpp Android binding; Qwen2.5-1.5B GGUF target),
+- hybrid LLM mode with remote API fallback,
 - floating bubble service stub,
 - accessibility service stub.
 
@@ -209,4 +211,5 @@ Build guide:
 - Compensation is tracked in **LPA** by default.
 - Keep sensitive data out of git (see `.gitignore`).
 - You always decide where to apply; this workflow only helps you reason faster and better.
-- Privacy default: generated personal artifacts are local-first (`config/profile.yml`, `cv.md`, `portals.yml`, `mobile/`), and the Android app currently runs without internet permission.
+- Privacy default: generated personal artifacts are local-first (`config/profile.yml`, `cv.md`, `portals.yml`, `mobile/`).
+- Android app profile data is local-only; API key is stored encrypted (Android Keystore-backed AES-GCM).

@@ -7,13 +7,18 @@ This guide is for the new Android app under `android-app/`.
 - Kotlin + Jetpack Compose app scaffold
 - Share-intent intake for job links/text
 - Local per-job pack generation in app storage
-- Local LLM interface abstraction + stub engine
+- Local LLM interface with real on-device runtime path + fallback stub
 - Foreground bubble service skeleton
 - Accessibility service skeleton for future label parsing
 - One-link job flow with in-app page text capture + auto detect company/role/salary
+- One-tap URL-only flow:
+  - app auto-switches to In-App Page to capture JD,
+  - then auto-generates score + recommendations + outputs,
+  - and auto-switches to Results when done
 - Hybrid LLM mode:
   - local fallback
   - optional API-key provider mode (user-provided key stored on-device)
+- API key is encrypted at rest with Android Keystore (AES-GCM)
 
 ## Privacy and data safety
 
@@ -23,6 +28,7 @@ Current defaults are privacy-focused:
 - Generated packs stay in private app storage (`files/mobile-packs/...`) unless you explicitly export/share.
 - No server sync is implemented in the current Android app code.
 - If you choose API mode and provide an API key, prompt content is sent to your configured API endpoint.
+- API key persistence is encrypted using Android Keystore before being written to DataStore.
 
 If you later add cloud APIs, keep them optional and off by default.
 
@@ -48,8 +54,8 @@ If you later add cloud APIs, keep them optional and off by default.
 1. Share a job URL/text to "Career Ops Mobile" (or open app directly).
 2. Fill profile once in Onboarding tab (including provider mode).
 3. Paste/share job URL.
-4. (Optional) Open In-App Page tab and capture page text.
-5. Tap "Generate full output".
+4. Preferred: Tap "One-tap URL flow" (URL only) and let app auto-capture + auto-generate.
+5. Optional manual path: use In-App Page tab to capture/refresh, then tap "Generate full output".
 6. App creates files in internal storage:
    - `files/mobile-packs/<date-slug>/...`
 7. Generates:
@@ -61,11 +67,20 @@ If you later add cloud APIs, keep them optional and off by default.
 ## Provider modes
 
 - **Local mode**: no API key required, uses local fallback generator.
+- **Local mode**:
+  - first tries on-device llama.cpp runtime (`org.codeshipping:llama-kotlin-android`) with a GGUF model path,
+  - if model is missing/fails to load, falls back to internal stub generator.
 - **API key mode**: user provides:
   - API Base URL
   - API model
   - API key
   and app calls `/chat/completions` style endpoint.
+
+Default local model path in code:
+
+- `/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf`
+
+You can place the Qwen2.5 1.5B Q4_K_M GGUF there for immediate on-device generation.
 
 ## Local LLM options on Android (recommended path)
 
@@ -98,11 +113,10 @@ Recommendation for first production attempt on OnePlus 12R:
 
 ## Next implementation steps
 
-1. Replace `StubLocalLlmEngine` with real MLC/llama.cpp engine wrapper.
-2. Add profile editor + persisted storage (DataStore).
-3. Implement real bubble overlay UI (WindowManager).
-4. Add accessibility label extraction and field suggestion mapper.
-5. Add export/share of generated pack files to user-visible storage.
+1. Add onboarding UI to choose local GGUF model path and inference knobs.
+2. Implement real bubble overlay UI (WindowManager).
+3. Add accessibility label extraction and field suggestion mapper.
+4. Add export/share of generated pack files to user-visible storage.
 
 ## Notes
 

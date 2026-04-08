@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.careerops.mobile.security.ApiKeyCrypto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -11,8 +12,10 @@ private val Context.profileDataStore by preferencesDataStore(name = "candidate_p
 
 class ProfileStore(private val context: Context) {
     private val keys = Keys()
+    private val crypto = ApiKeyCrypto()
 
     val profileFlow: Flow<CandidateProfile> = context.profileDataStore.data.map { prefs ->
+        val decryptedApiKey = crypto.decrypt(prefs[keys.apiKeyEncrypted] ?: "")
         CandidateProfile(
             fullName = prefs[keys.fullName] ?: "Your Name",
             email = prefs[keys.email] ?: "you@example.com",
@@ -35,7 +38,7 @@ class ProfileStore(private val context: Context) {
             llmProviderMode = prefs[keys.llmProviderMode] ?: "local",
             apiBaseUrl = prefs[keys.apiBaseUrl] ?: "https://api.openai.com/v1",
             apiModel = prefs[keys.apiModel] ?: "gpt-4o-mini",
-            apiKey = prefs[keys.apiKey] ?: ""
+            apiKey = if (decryptedApiKey.isNotBlank()) decryptedApiKey else (prefs[keys.apiKeyLegacy] ?: "")
         )
     }
 
@@ -62,7 +65,8 @@ class ProfileStore(private val context: Context) {
             prefs[keys.llmProviderMode] = profile.llmProviderMode
             prefs[keys.apiBaseUrl] = profile.apiBaseUrl
             prefs[keys.apiModel] = profile.apiModel
-            prefs[keys.apiKey] = profile.apiKey
+            prefs[keys.apiKeyEncrypted] = crypto.encrypt(profile.apiKey)
+            prefs.remove(keys.apiKeyLegacy)
         }
     }
 
@@ -88,6 +92,7 @@ class ProfileStore(private val context: Context) {
         val llmProviderMode = stringPreferencesKey("llm_provider_mode")
         val apiBaseUrl = stringPreferencesKey("api_base_url")
         val apiModel = stringPreferencesKey("api_model")
-        val apiKey = stringPreferencesKey("api_key")
+        val apiKeyLegacy = stringPreferencesKey("api_key")
+        val apiKeyEncrypted = stringPreferencesKey("api_key_encrypted")
     }
 }

@@ -30,6 +30,8 @@ data class MainUiState(
     val jdText: String = "",
     val extractedPageText: String = "",
     val isGenerating: Boolean = false,
+    val isAutoGenerating: Boolean = false,
+    val pendingAutoGenerateAfterExtraction: Boolean = false,
     val statusMessage: String = "",
     val latestPackFolder: String = "",
     val detectedCompany: String = "",
@@ -40,7 +42,8 @@ data class MainUiState(
     val recommendationReasons: List<String> = emptyList(),
     val generatedCoverLetter: String = "",
     val generatedResumeHighlights: String = "",
-    val formSuggestions: List<FormSuggestion> = emptyList()
+    val formSuggestions: List<FormSuggestion> = emptyList(),
+    val autoFlowRequestedAtMs: Long = 0L
 )
 
 class MainViewModel(
@@ -68,14 +71,27 @@ class MainViewModel(
         val maybeUrl = if (text.startsWith("http")) text else ""
         _uiState.value = _uiState.value.copy(
             url = maybeUrl.ifBlank { _uiState.value.url },
+            extractedPageText = if (maybeUrl.isNotBlank()) "" else _uiState.value.extractedPageText,
             jdText = if (maybeUrl.isBlank()) text else _uiState.value.jdText,
+            detectedCompany = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedCompany,
+            detectedRole = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedRole,
+            detectedSalaryHint = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedSalaryHint,
             statusMessage = "Shared content imported."
         )
     }
 
     fun updateCompany(value: String) { _uiState.value = _uiState.value.copy(company = value) }
     fun updateRole(value: String) { _uiState.value = _uiState.value.copy(role = value) }
-    fun updateUrl(value: String) { _uiState.value = _uiState.value.copy(url = value) }
+    fun updateUrl(value: String) {
+        val current = _uiState.value
+        _uiState.value = current.copy(
+            url = value,
+            extractedPageText = if (current.url != value) "" else current.extractedPageText,
+            detectedCompany = if (current.url != value) "" else current.detectedCompany,
+            detectedRole = if (current.url != value) "" else current.detectedRole,
+            detectedSalaryHint = if (current.url != value) "" else current.detectedSalaryHint
+        )
+    }
     fun updateJdText(value: String) { _uiState.value = _uiState.value.copy(jdText = value) }
 
     fun updateExtractedPageText(value: String) {
@@ -83,7 +99,7 @@ class MainViewModel(
         val detectedCompany = JobPageExtractor.detectCompany(cleaned)
         val detectedRole = JobPageExtractor.detectRole(cleaned)
         val detectedSalary = JobPageExtractor.detectSalary(cleaned)
-        _uiState.value = _uiState.value.copy(
+        val next = _uiState.value.copy(
             extractedPageText = cleaned,
             company = if (_uiState.value.company.isBlank()) detectedCompany else _uiState.value.company,
             role = if (_uiState.value.role.isBlank()) detectedRole else _uiState.value.role,
@@ -91,6 +107,18 @@ class MainViewModel(
             detectedRole = detectedRole,
             detectedSalaryHint = detectedSalary
         )
+        _uiState.value = next
+        if (next.pendingAutoGenerateAfterExtraction) {
+            _uiState.value = next.copy(
+                pendingAutoGenerateAfterExtraction = false,
+                statusMessage = if (cleaned.isBlank()) {
+                    "Page had little readable text. Generating with available input."
+                } else {
+                    next.statusMessage
+                }
+            )
+            generatePack()
+        }
     }
 
     fun refreshSuggestionsFromVisibleText(visibleText: String) {
@@ -106,6 +134,24 @@ class MainViewModel(
             profileStore.saveProfile(updated)
             _uiState.value = _uiState.value.copy(statusMessage = "Profile saved locally.")
         }
+    }
+
+    fun startAutoGenerateFromUrlOnly() {
+        val state = _uiState.value
+        if (state.url.isBlank()) {
+            _uiState.value = state.copy(statusMessage = "Job URL is required.")
+            return
+        }
+        _uiState.value = state.copy(
+            isAutoGenerating = true,
+            pendingAutoGenerateAfterExtraction = true,
+            autoFlowRequestedAtMs = System.currentTimeMillis(),
+            extractedPageText = "",
+            detectedCompany = "",
+            detectedRole = "",
+            detectedSalaryHint = "",
+            statusMessage = "Opening page and extracting JD. Generation will start automatically."
+        )
     }
 
     fun generatePack() {
@@ -141,9 +187,15 @@ class MainViewModel(
             val pack: ApplicationPack = withContext(Dispatchers.IO) {
                 repository.generatePack(jobInput, state.profile)
             }
-            val coverLetter = llmEngine.generateCoverLetter(jobInput, state.profile)
-            val resumeHighlights = llmEngine.generateResumeHighlights(jobInput, state.profile)
-            val applyDecision = llmEngine.suggestApplyDecision(jobInput, state.profile)
+            val coverLetter = withContext(Dispatchers.IO) {
+                llmEngine.generateCoverLetter(jobInput, state.profile)
+            }
+            val resumeHighlights = withContext(Dispatchers.IO) {
+                llmEngine.generateResumeHighlights(jobInput, state.profile)
+            }
+            val applyDecision = withContext(Dispatchers.IO) {
+                llmEngine.suggestApplyDecision(jobInput, state.profile)
+            }
 
             withContext(Dispatchers.IO) {
                 writeGeneratedOutputs(pack.folderName, jobInput, coverLetter, resumeHighlights)
@@ -151,6 +203,8 @@ class MainViewModel(
 
             _uiState.value = _uiState.value.copy(
                 isGenerating = false,
+                isAutoGenerating = false,
+                pendingAutoGenerateAfterExtraction = false,
                 company = insight.detectedCompany.ifBlank { jobInput.company },
                 role = insight.detectedRole.ifBlank { jobInput.role },
                 latestPackFolder = pack.folderName,

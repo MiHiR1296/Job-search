@@ -29,6 +29,7 @@ import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,21 @@ fun MainScreen(viewModel: MainViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(MainTab.ONBOARD) }
+    LaunchedEffect(state.isAutoGenerating, state.url) {
+        if (state.isAutoGenerating && state.url.isNotBlank()) {
+            selectedTab = MainTab.WEBVIEW
+        }
+    }
+    LaunchedEffect(state.autoFlowRequestedAtMs, state.isGenerating, state.isAutoGenerating, state.latestPackFolder) {
+        if (
+            state.autoFlowRequestedAtMs > 0L &&
+            !state.isGenerating &&
+            !state.isAutoGenerating &&
+            state.latestPackFolder.isNotBlank()
+        ) {
+            selectedTab = MainTab.RESULTS
+        }
+    }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -88,6 +104,7 @@ fun MainScreen(viewModel: MainViewModel) {
                     onUrl = viewModel::updateUrl,
                     onJd = viewModel::updateJdText,
                     onGenerate = viewModel::generatePack,
+                    onAutoGenerate = viewModel::startAutoGenerateFromUrlOnly,
                     onStartBubble = {
                         val serviceIntent = Intent(context, BubbleOverlayService::class.java)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -199,7 +216,7 @@ private fun OnboardingTab(
         OutlinedTextField(
             draft.apiKey,
             { draft = draft.copy(apiKey = it) },
-            label = { Text("API Key (stored locally on device)") },
+            label = { Text("API Key (encrypted locally via Android Keystore)") },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -217,6 +234,7 @@ private fun JobInputTab(
     onUrl: (String) -> Unit,
     onJd: (String) -> Unit,
     onGenerate: () -> Unit,
+    onAutoGenerate: () -> Unit,
     onStartBubble: () -> Unit
 ) {
     Column(
@@ -227,7 +245,10 @@ private fun JobInputTab(
     ) {
         Text("Job Input", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Paste/share a URL and press Generate. Company/role can be auto-detected from page text.", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "Paste/share a URL and use One-tap URL flow. Company, role, and JD are auto-extracted from the in-app page.",
+            style = MaterialTheme.typography.bodyMedium
+        )
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
             state.company,
@@ -281,15 +302,35 @@ private fun JobInputTab(
             Button(onClick = onGenerate, modifier = Modifier.weight(1f), enabled = !state.isGenerating) {
                 Text("Generate full output")
             }
+            Button(
+                onClick = onAutoGenerate,
+                modifier = Modifier.weight(1f),
+                enabled = !state.isGenerating && !state.isAutoGenerating
+            ) {
+                Text("One-tap URL flow")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Button(onClick = onStartBubble, modifier = Modifier.weight(1f)) {
                 Text("Start bubble")
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        if (state.isGenerating) CircularProgressIndicator()
+        if (state.isGenerating || state.isAutoGenerating) CircularProgressIndicator()
         if (state.statusMessage.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(state.statusMessage, style = MaterialTheme.typography.bodySmall)
+        }
+        if (state.isAutoGenerating) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Auto mode running: in-app page capture, scoring, and generation are in progress.",
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
