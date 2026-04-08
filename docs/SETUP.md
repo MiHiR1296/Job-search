@@ -72,3 +72,23 @@ Use these modes regularly:
 - `modes/cover-letter.md` for role-specific cover letters
 - `modes/discovery-update.md` for targeted Q&A sessions
 - `modes/post-application-learnings.md` after each application outcome
+
+## 8) Mobile-first (Android) setup
+
+If you apply mostly from phone:
+
+1. Open `docs/mobile/ANDROID_WORKFLOW.md`
+2. For each job link, generate a mobile pack:
+
+```bash
+node tools/mobile/generate-application-pack.mjs \
+  --company="Company Name" \
+  --role="Role Name" \
+  --url="https://job-link"
+```
+
+3. Run `modes/mobile-pack.md` to fill the generated pack with:
+   - role-specific cover letter,
+   - tailored resume highlights,
+   - finalized form answers.
+4. Sync/open the `mobile/` folder on phone and apply quickly across portals.

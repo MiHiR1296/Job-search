@@ -21,6 +21,7 @@ This repository gives you a practical, customizable workflow to:
 - **Job tracker format** for applications and interview stages
 - **Reusable AI modes/prompts** for evaluate, scan, CV tailoring, and pipeline updates
 - **Learning loop memory system** that improves resume/cover letter quality after each application
+- **Android-first application packs** for fast multi-portal phone applications
 
 ---
 
@@ -108,6 +109,26 @@ This fills common fields but does **not** auto-submit.
   - `knowledge/master-profile.md`
   - `knowledge/application-learnings.md`
 
+### 7) Android phone flow (no plugin)
+
+Generate a phone-friendly pack per job:
+
+```bash
+node tools/mobile/generate-application-pack.mjs \
+  --company="Framestore" \
+  --role="Lead Texture Artist" \
+  --url="https://www.linkedin.com/jobs/view/4375111638/"
+```
+
+Then run `modes/mobile-pack.md` to auto-complete:
+- role-specific cover letter,
+- tailored resume file,
+- copy/paste form answers.
+
+Use docs:
+- `docs/mobile/ANDROID_WORKFLOW.md` (practical phone flow now)
+- `docs/mobile/FLOATING_BUBBLE_APP_SPEC.md` (future floating-bubble app blueprint)
+
 ---
 
 ## Project Structure
@@ -122,6 +143,9 @@ This fills common fields but does **not** auto-submit.
 ├── docs/
 │   ├── AUTOFILL.md
 │   ├── CUSTOMIZATION.md
+│   ├── mobile/
+│   │   ├── ANDROID_WORKFLOW.md
+│   │   └── FLOATING_BUBBLE_APP_SPEC.md
 │   ├── SETUP.md
 │   └── WORKFLOW.md
 ├── cover-letters/
@@ -137,17 +161,23 @@ This fills common fields but does **not** auto-submit.
 │   ├── cover-letter.md
 │   ├── discovery-update.md
 │   ├── evaluate-offer.md
+│   ├── mobile-pack.md
 │   ├── pipeline.md
 │   ├── post-application-learnings.md
 │   ├── scan-india.md
 │   └── tailored-cv.md
+├── mobile/
 ├── tools/
 │   └── autofill/
 │       ├── form-autofill.js
 │       ├── generate-loader.mjs
 │       ├── load-profile-and-fill.js
 │       └── profile.autofill.example.json
+│   └── mobile/
+│       └── generate-application-pack.mjs
 ├── templates/
+│   └── mobile/
+│       └── application-pack-template.md
 │   ├── evaluation-rubric.india.yml
 │   ├── portals.india.example.yml
 │   └── states.yml

@@ -37,3 +37,15 @@
 4. Use updated knowledge when generating:
    - tailored resume drafts (`modes/tailored-cv.md`)
    - cover letters (`modes/cover-letter.md`)
+
+## Mobile-first loop (OnePlus/Android friendly)
+
+1. Share or paste job link.
+2. Generate pack:
+   - `node tools/mobile/generate-application-pack.mjs --company="..." --role="..." --url="..."`
+3. Run `modes/mobile-pack.md` to complete:
+   - `<slug>-cover-letter.md`
+   - `<slug>-resume.md`
+   - `<slug>-application-pack.md`
+4. Open pack files on phone while filling forms.
+5. Submit manually, then run `modes/post-application-learnings.md`.
