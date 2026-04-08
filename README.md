@@ -129,7 +129,7 @@ Use docs:
 - `docs/mobile/ANDROID_WORKFLOW.md` (practical phone flow now)
 - `docs/mobile/FLOATING_BUBBLE_APP_SPEC.md` (future floating-bubble app blueprint)
 
-### 8) Native Android app (in progress)
+### 8) Native Android app (mobile-first, live)
 
 The app project now lives in:
 
@@ -140,6 +140,7 @@ Current app in code:
 - deep-link intake (`ACTION_VIEW`) and PDF share intake for resume URI capture,
 - per-job pack generation in app storage,
 - one-tap URL-only flow (auto-opens in-app page, captures text, auto-generates outputs),
+- share-link autopilot (shared likely job URLs auto-start one-tap flow),
 - local on-device LLM runtime path (llama.cpp Android binding; Qwen2.5-1.5B GGUF target),
 - hybrid LLM mode with remote API fallback,
 - voice dictation onboarding/memory capture with long-term memory summarization,
@@ -148,6 +149,31 @@ Current app in code:
 
 Build guide:
 - `docs/mobile/ANDROID_APP_BUILD.md`
+- full runbook (env, paths, rebuild commands): `docs/RUNBOOK_CURSOR_CLOUD.md`
+
+### 9) Android app quick usage
+
+1. Install APK from `apk/CareerOpsMobile-debug.apk`.
+2. Open app -> Onboarding tab -> fill details once and save.
+3. Optional but recommended:
+   - Local mode: place GGUF at `/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf`
+   - API mode: enter your own API base/model/key (key is encrypted locally).
+4. Share a job link from LinkedIn/WhatsApp/browser to Career Ops Mobile.
+5. App auto-detects likely job links and starts one-tap pipeline.
+6. Review output in Results tab:
+   - fit score + recommendation,
+   - generated cover letter,
+   - resume highlights,
+   - field suggestions for forms.
+7. Use Memory tab to dictate your story and save long-term career memory.
+
+### 10) Practical tips
+
+- Keep strengths/achievements specific (metrics, tools, outcomes).
+- If extraction is weak on a page, use In-App Page -> capture/refresh manually.
+- Keep API mode optional and only when you want richer reasoning.
+- Never store API keys in repo files; keep only in app onboarding.
+- Use the tracker (`data/applications.md`) after every application to keep momentum.
 
 ---
 

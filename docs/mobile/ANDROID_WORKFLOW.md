@@ -66,8 +66,10 @@ mobile/YYYY-MM-DD-company-role/
 
 - Android app scaffold now exists in `android-app/`.
 - Build/run guide: `docs/mobile/ANDROID_APP_BUILD.md`
-- Current MVP supports:
-  - share-intent job intake,
-  - per-job pack generation in app storage,
-  - local LLM interface stubs,
+- Current app supports:
+  - shared-link autopilot (detect likely job links and auto-start one-tap flow),
+  - deep-link intake (`ACTION_VIEW`) and shared PDF resume URI capture,
+  - one-tap URL-only JD capture + scoring + generation,
+  - local on-device LLM runtime path + API-key mode fallback,
+  - voice-first onboarding and long-term career memory summarization,
   - floating bubble + accessibility service skeletons.

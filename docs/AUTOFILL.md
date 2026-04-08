@@ -41,6 +41,17 @@ node tools/autofill/generate-loader.mjs
 4. Review all fields and manually upload files if needed.
 5. Manually click submit.
 
+## Mobile app alternative (recommended first)
+
+If you use Android and switch across portals a lot, prefer the native app flow first:
+
+1. Share job link directly to Career Ops Mobile.
+2. Let one-tap URL flow generate outputs.
+3. Use in-app suggestions and generated answers while filling forms.
+4. Submit manually.
+
+Use browser-console autofill only where it fits your workflow best.
+
 ## Multi-step forms
 
 Repeat step 3 on each step/page after navigating next.

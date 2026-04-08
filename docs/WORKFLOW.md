@@ -49,3 +49,24 @@
    - `<slug>-application-pack.md`
 4. Open pack files on phone while filling forms.
 5. Submit manually, then run `modes/post-application-learnings.md`.
+
+## Native app loop (fastest daily usage)
+
+1. From LinkedIn/WhatsApp/Instagram/browser, share job link to **Career Ops Mobile**.
+2. If link matches job patterns, app auto-starts one-tap flow:
+   - opens in-app page,
+   - captures page text,
+   - extracts role/company/salary hints,
+   - generates output and opens Results.
+3. Review recommendation + reasons in Results tab.
+4. Use generated content and live suggestions while filling the application form.
+5. Use Memory tab for voice updates:
+   - dictate new project stories,
+   - summarize into long-term memory,
+   - reuse in future applications.
+
+### Practical tips
+
+- Keep API mode only if you want stronger generation quality and you trust your endpoint.
+- Keep local mode as fallback for offline/privacy-first usage.
+- Use one-tap flow first; use manual Job Input only when extraction is weak.

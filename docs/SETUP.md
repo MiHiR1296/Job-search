@@ -92,3 +92,33 @@ node tools/mobile/generate-application-pack.mjs \
    - tailored resume highlights,
    - finalized form answers.
 4. Sync/open the `mobile/` folder on phone and apply quickly across portals.
+
+## 9) Native Android app setup (recommended)
+
+Use this when you want a low-friction mobile app flow (share link -> auto process).
+
+1. Open:
+   - `docs/mobile/ANDROID_APP_BUILD.md`
+2. Build app:
+
+```bash
+cd android-app
+./gradlew assembleDebug
+```
+
+3. Install APK from:
+   - `apk/CareerOpsMobile-debug.apk`
+4. In app Onboarding:
+   - fill profile once,
+   - set LLM mode:
+     - Local mode (on-device model path),
+     - API mode (your API base/model/key).
+5. Use share from LinkedIn/WhatsApp/browser to send job links directly to app.
+
+## 10) Documentation/runbook reference
+
+For full environment paths, commands, and implementation history:
+
+- `docs/RUNBOOK_CURSOR_CLOUD.md`
+
+Use this file for quick recovery when starting a new session in Cursor Cloud.

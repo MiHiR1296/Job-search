@@ -144,3 +144,20 @@ Output:
 Start with **Share URL + Generate Pack + Bubble Copy/Paste** MVP.
 It is the fastest path to a seamless experience across many portals without plugin dependency.
 
+## Current status in this repository
+
+The repository now includes an implemented Android baseline beyond pure blueprint:
+
+- share/deep-link job ingestion,
+- one-tap URL auto-processing path,
+- in-app page capture and extraction,
+- hybrid LLM routing (local runtime path + optional API mode),
+- voice dictation and long-term memory summarization,
+- bubble and accessibility scaffolds for iterative enhancement.
+
+For runnable usage details, see:
+
+- `docs/mobile/ANDROID_APP_BUILD.md`
+- `docs/mobile/ANDROID_WORKFLOW.md`
+- `docs/RUNBOOK_CURSOR_CLOUD.md`
+

@@ -127,6 +127,8 @@ Recommendation for first production attempt on OnePlus 12R:
 2. Implement real bubble overlay UI (WindowManager).
 3. Add accessibility label extraction and field suggestion mapper.
 4. Add export/share of generated pack files to user-visible storage.
+5. Add optional Google Sign-In and user profile bootstrap (still keep core flow usable without login).
+6. Add robust resume parser pipeline to extract structured profile from PDF content.
 
 ## Notes
 
