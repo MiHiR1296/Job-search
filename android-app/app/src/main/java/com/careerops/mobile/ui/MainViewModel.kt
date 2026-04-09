@@ -188,6 +188,20 @@ class MainViewModel(
         }
     }
 
+    fun applyImportedResumeProfile(updated: CandidateProfile, autoFilled: Boolean) {
+        viewModelScope.launch {
+            profileStore.saveProfile(updated)
+            _uiState.value = _uiState.value.copy(
+                profile = updated,
+                statusMessage = if (autoFilled) {
+                    "Resume imported. Profile fields were auto-filled where possible."
+                } else {
+                    "Resume imported. You can fill remaining fields manually."
+                }
+            )
+        }
+    }
+
     fun updateAiSetupModeDraft(value: String) {
         _uiState.value = _uiState.value.copy(aiSetupModeDraft = value)
     }
@@ -224,12 +238,6 @@ class MainViewModel(
         _uiState.value = _uiState.value.copy(shouldAutoStartFromShare = false)
     }
 
-    fun onResumeSelected(uri: String?) {
-        if (uri.isNullOrBlank()) return
-        val profile = _uiState.value.profile.copy(resumeUri = uri)
-        saveProfile(profile)
-    }
-
     fun beginVoiceCapture(field: String) {
         _uiState.value = _uiState.value.copy(dictationFocusField = field)
     }
@@ -257,10 +265,17 @@ class MainViewModel(
         }
     }
 
-    fun onVoiceCaptureUnavailable() {
+    fun onVoiceCaptureUnavailable(message: String = "Voice capture unavailable on this device. Please type your answer.") {
         _uiState.value = _uiState.value.copy(
             dictationFocusField = "",
-            statusMessage = "Voice capture unavailable on this device. Please type your answer."
+            statusMessage = message
+        )
+    }
+
+    fun onVoicePermissionDenied() {
+        _uiState.value = _uiState.value.copy(
+            dictationFocusField = "",
+            statusMessage = "Microphone permission denied. Enable it from app settings to use voice memory."
         )
     }
 
@@ -423,10 +438,16 @@ class MainViewModel(
         val state = _uiState.value
         viewModelScope.launch {
             _uiState.value = state.copy(isTestingApiConnection = true, apiTestStatus = "")
-            val profile = state.profile
+            val profile = state.profile.copy(
+                llmProviderMode = state.aiSetupModeDraft,
+                localModelPath = state.aiSetupLocalModelPathDraft,
+                apiBaseUrl = state.aiSetupApiBaseUrlDraft,
+                apiModel = state.aiSetupApiModelDraft,
+                apiKey = state.aiSetupApiKeyDraft
+            )
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    if (profile.llmProviderMode != "api") {
+                    if (!profile.llmProviderMode.equals("api", ignoreCase = true)) {
                         return@runCatching "Switch to API key mode first."
                     }
                     if (profile.apiBaseUrl.isBlank() || profile.apiModel.isBlank() || profile.apiKey.isBlank()) {

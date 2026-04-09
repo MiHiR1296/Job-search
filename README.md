@@ -141,11 +141,13 @@ Current app in code:
 - per-job pack generation in app storage,
 - one-tap URL-only flow (auto-opens in-app page, captures text, auto-generates outputs),
 - share-link autopilot (shared likely job URLs auto-start one-tap flow),
-- dedicated AI Setup tab (provider mode, local model path, API test),
+- dedicated AI Setup tab with mode-specific UI (local-only fields vs API-only fields),
+- improved API connection tester with endpoint/error diagnostics,
 - manual capture mode to avoid login/ads/skip-content misreads before generation,
 - local on-device LLM runtime path (llama.cpp Android binding; Qwen2.5-1.5B GGUF target),
 - hybrid LLM mode with remote API fallback,
-- voice dictation onboarding/memory capture with long-term memory summarization,
+- voice dictation focused on Memory tab with clearer microphone/recognizer feedback,
+- resume import auto-parser that pre-fills profile fields from selected documents,
 - floating bubble service stub,
 - accessibility service stub.
 
@@ -156,13 +158,16 @@ Build guide:
 ### 9) Android app quick usage
 
 1. Install APK from `apk/CareerOpsMobile-debug.apk`.
-2. Open app -> Onboarding tab -> fill details once and save.
+2. Open app -> Onboarding tab.
    - Tap **Choose from Files (PDF/DOC/TXT)** to pick resume/documents from Android file picker (no path typing needed).
+   - App auto-parses resume and pre-fills fields where possible (name/email/phone/skills/role hints).
+   - Edit remaining details and save once.
 3. Optional but recommended:
    - Local mode: place GGUF at `/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf`
    - API mode: enter your own API base/model/key (key is encrypted locally).
 4. Share a job link from LinkedIn/WhatsApp/browser to Career Ops Mobile.
 5. App auto-detects likely job links and starts one-tap pipeline.
+   - If in-app login is blocked/pop-up based, use **Open current page in browser** fallback and continue there.
 6. Review output in Results tab:
    - fit score + recommendation,
    - generated cover letter,

@@ -52,7 +52,8 @@ private enum class MainTab { ONBOARD, AI_SETUP, JOB, WEBVIEW, RESULTS, MEMORY }
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
-    onPickResumeDocument: () -> Unit
+    onPickResumeDocument: () -> Unit,
+    onStartVoiceCapture: (String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -126,12 +127,16 @@ fun MainScreen(
                 MainTab.ONBOARD -> OnboardingTab(
                     profile = state.profile,
                     onSave = viewModel::saveProfile,
-                    onStartVoice = viewModel::beginVoiceCapture,
                     onPickResumeDocument = onPickResumeDocument
                 )
                 MainTab.AI_SETUP -> AiSetupTab(
                     state = state,
-                    onSave = viewModel::saveProfile,
+                    onModeChange = viewModel::updateAiSetupModeDraft,
+                    onLocalModelPathChange = viewModel::updateAiSetupLocalModelPathDraft,
+                    onApiBaseUrlChange = viewModel::updateAiSetupApiBaseUrlDraft,
+                    onApiModelChange = viewModel::updateAiSetupApiModelDraft,
+                    onApiKeyChange = viewModel::updateAiSetupApiKeyDraft,
+                    onSave = viewModel::saveAiSetupDraftsToProfile,
                     onTestApi = viewModel::testApiConnection,
                     onManualCaptureMode = viewModel::setManualCaptureMode
                 )
@@ -175,7 +180,7 @@ fun MainScreen(
                 MainTab.RESULTS -> ResultsTab(state = state)
                 MainTab.MEMORY -> MemoryTab(
                     state = state,
-                    onStartVoice = viewModel::beginVoiceCapture,
+                    onStartVoice = onStartVoiceCapture,
                     onClearDraft = viewModel::clearNarrativeDraft,
                     onEditDraft = viewModel::updateNarrativeDraft,
                     onSummarize = viewModel::summarizeNarrativeIntoMemory
@@ -188,11 +193,16 @@ fun MainScreen(
 @Composable
 private fun AiSetupTab(
     state: MainUiState,
-    onSave: (CandidateProfile) -> Unit,
+    onModeChange: (String) -> Unit,
+    onLocalModelPathChange: (String) -> Unit,
+    onApiBaseUrlChange: (String) -> Unit,
+    onApiModelChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onSave: () -> Unit,
     onTestApi: () -> Unit,
     onManualCaptureMode: (Boolean) -> Unit
 ) {
-    var draft by remember(state.profile) { mutableStateOf(state.profile) }
+    val isApiMode = state.aiSetupModeDraft.equals("api", ignoreCase = true)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -209,59 +219,83 @@ private fun AiSetupTab(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
-                selected = draft.llmProviderMode.equals("local", ignoreCase = true),
-                onClick = { draft = draft.copy(llmProviderMode = "local") },
+                selected = !isApiMode,
+                onClick = { onModeChange("local") },
                 label = { Text("Local model mode") },
                 colors = FilterChipDefaults.filterChipColors()
             )
             FilterChip(
-                selected = draft.llmProviderMode.equals("api", ignoreCase = true),
-                onClick = { draft = draft.copy(llmProviderMode = "api") },
+                selected = isApiMode,
+                onClick = { onModeChange("api") },
                 label = { Text("API mode") },
                 colors = FilterChipDefaults.filterChipColors()
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(
-            draft.localModelPath,
-            { draft = draft.copy(localModelPath = it) },
-            label = { Text("Local GGUF model path") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            draft.apiBaseUrl,
-            { draft = draft.copy(apiBaseUrl = it) },
-            label = { Text("API Base URL") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            draft.apiModel,
-            { draft = draft.copy(apiModel = it) },
-            label = { Text("API Model") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            draft.apiKey,
-            { draft = draft.copy(apiKey = it) },
-            label = { Text("API Key (encrypted locally)") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 2
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = { onSave(draft) }, modifier = Modifier.fillMaxWidth()) {
-            Text("Save AI setup")
+        if (!isApiMode) {
+            OutlinedTextField(
+                value = state.aiSetupLocalModelPathDraft,
+                onValueChange = onLocalModelPathChange,
+                label = { Text("Local GGUF model path") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "Use local mode for offline/private usage. Example: /sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+                style = MaterialTheme.typography.bodySmall
+            )
+        } else {
+            OutlinedTextField(
+                value = state.aiSetupApiBaseUrlDraft,
+                onValueChange = onApiBaseUrlChange,
+                label = { Text("API Base URL") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.aiSetupApiModelDraft,
+                onValueChange = onApiModelChange,
+                label = { Text("API Model (editable)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Quick model presets", style = MaterialTheme.typography.titleSmall)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(
+                    onClick = { onApiModelChange("gpt-4o-mini") },
+                    label = { Text("gpt-4o-mini") },
+                    colors = AssistChipDefaults.assistChipColors()
+                )
+                AssistChip(
+                    onClick = { onApiModelChange("gpt-4.1-mini") },
+                    label = { Text("gpt-4.1-mini") },
+                    colors = AssistChipDefaults.assistChipColors()
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.aiSetupApiKeyDraft,
+                onValueChange = onApiKeyChange,
+                label = { Text("API Key (encrypted locally)") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Key is stored locally with encryption.", style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onTestApi,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.isTestingApiConnection
+            ) {
+                Text("Test API connection")
+            }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = onTestApi,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isTestingApiConnection
-        ) {
-            Text("Test API connection")
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
+            Text("Save AI setup")
         }
         if (state.isTestingApiConnection) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -269,7 +303,7 @@ private fun AiSetupTab(
         }
         if (state.apiTestStatus.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(state.apiTestStatus, style = MaterialTheme.typography.bodySmall)
+            StatusMessageBox(state.apiTestStatus)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -285,6 +319,8 @@ private fun AiSetupTab(
             "ON = app waits for your Capture + Generate button (safer when login pages/ads appear first).",
             style = MaterialTheme.typography.bodySmall
         )
+        Spacer(modifier = Modifier.height(12.dp))
+        StatusMessageBox(state.statusMessage)
     }
 }
 
@@ -292,7 +328,6 @@ private fun AiSetupTab(
 private fun OnboardingTab(
     profile: CandidateProfile,
     onSave: (CandidateProfile) -> Unit,
-    onStartVoice: (String) -> Unit,
     onPickResumeDocument: () -> Unit
 ) {
     var draft by remember(profile) { mutableStateOf(profile) }
@@ -308,7 +343,6 @@ private fun OnboardingTab(
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(draft.fullName, { draft = draft.copy(fullName = it) }, label = { Text("Full name") }, modifier = Modifier.fillMaxWidth())
-        TextButton(onClick = { onStartVoice("fullName") }) { Text("Dictate full name") }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.email, { draft = draft.copy(email = it) }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
@@ -317,10 +351,8 @@ private fun OnboardingTab(
         OutlinedTextField(draft.location, { draft = draft.copy(location = it) }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.currentTitle, { draft = draft.copy(currentTitle = it) }, label = { Text("Current title") }, modifier = Modifier.fillMaxWidth())
-        TextButton(onClick = { onStartVoice("currentTitle") }) { Text("Dictate current title") }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.targetRole, { draft = draft.copy(targetRole = it) }, label = { Text("Target role") }, modifier = Modifier.fillMaxWidth())
-        TextButton(onClick = { onStartVoice("targetRole") }) { Text("Dictate target role") }
         Spacer(modifier = Modifier.height(8.dp))
         Text("Resume / documents", style = MaterialTheme.typography.titleSmall)
         Spacer(modifier = Modifier.height(4.dp))
@@ -339,6 +371,11 @@ private fun OnboardingTab(
             },
             style = MaterialTheme.typography.bodySmall
         )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            "After choosing resume, app auto-detects details and pre-fills what it can. You can edit remaining fields.",
+            style = MaterialTheme.typography.bodySmall
+        )
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.yearsExperience, { draft = draft.copy(yearsExperience = it) }, label = { Text("Years experience") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
@@ -351,10 +388,8 @@ private fun OnboardingTab(
         OutlinedTextField(draft.noticePeriodDays, { draft = draft.copy(noticePeriodDays = it) }, label = { Text("Notice period (days)") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.strengths, { draft = draft.copy(strengths = it) }, label = { Text("Top strengths (comma-separated)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-        TextButton(onClick = { onStartVoice("strengths") }) { Text("Dictate strengths") }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.achievements, { draft = draft.copy(achievements = it) }, label = { Text("Key achievements (comma-separated)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-        TextButton(onClick = { onStartVoice("achievements") }) { Text("Dictate achievements") }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             draft.careerMemory,
@@ -385,6 +420,21 @@ private fun extractDisplayFileName(uriText: String): String {
     val parsed = runCatching { Uri.parse(uriText) }.getOrNull() ?: return "Document selected"
     val raw = parsed.lastPathSegment?.substringAfterLast('/')?.trim().orEmpty()
     return if (raw.isBlank()) "Document selected" else raw
+}
+
+@Composable
+private fun StatusMessageBox(message: String) {
+    if (message.isBlank()) return
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        tonalElevation = 2.dp
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(10.dp)
+        )
+    }
 }
 
 @Composable
@@ -573,6 +623,13 @@ private fun MemoryTab(
         Spacer(modifier = Modifier.height(12.dp))
         Button(onClick = { onStartVoice("careerNarrative") }, modifier = Modifier.fillMaxWidth()) {
             Text("Start voice dictation")
+        }
+        if (state.statusMessage.contains("voice", ignoreCase = true) ||
+            state.statusMessage.contains("microphone", ignoreCase = true) ||
+            state.statusMessage.contains("speech recognition", ignoreCase = true)
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(state.statusMessage, style = MaterialTheme.typography.bodySmall)
         }
         Spacer(modifier = Modifier.height(8.dp))
         TextButton(onClick = onClearDraft, modifier = Modifier.fillMaxWidth()) {

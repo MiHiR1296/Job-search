@@ -11,12 +11,17 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.compose.material3.MaterialTheme
+import androidx.lifecycle.lifecycleScope
 import com.careerops.mobile.data.PackRepository
 import com.careerops.mobile.data.ProfileStore
+import com.careerops.mobile.data.ResumeParser
 import com.careerops.mobile.ui.MainScreen
 import com.careerops.mobile.ui.MainViewModel
 import com.careerops.mobile.ui.MainViewModelFactory
 import com.careerops.mobile.voice.VoiceDictationManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -36,6 +41,9 @@ class MainActivity : ComponentActivity() {
             if (field.isNotBlank()) {
                 viewModel.applyVoiceInput(field, spoken)
             }
+        } else {
+            // Avoid getting stuck in "voice pending" state if recognizer returns nothing.
+            viewModel.consumeVoiceField()
         }
     }
 
@@ -44,6 +52,8 @@ class MainActivity : ComponentActivity() {
     ) { granted ->
         if (granted) {
             launchVoiceCaptureIfRequested()
+        } else {
+            viewModel.onVoicePermissionDenied()
         }
     }
 
@@ -62,7 +72,8 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 MainScreen(
                     viewModel = viewModel,
-                    onPickResumeDocument = ::openResumeDocumentPicker
+                    onPickResumeDocument = ::openResumeDocumentPicker,
+                    onStartVoiceCapture = ::requestVoiceCapture
                 )
             }
         }
@@ -86,7 +97,7 @@ class MainActivity : ComponentActivity() {
             val link = intent.dataString ?: intent.data?.toString() ?: ""
             if (link.isNotBlank()) viewModel.ingestSharedText(link)
         }
-        val stream = intent?.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
+        val stream = intent?.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
         if (stream != null) {
             handlePickedDocument(stream)
         }
@@ -112,12 +123,33 @@ class MainActivity : ComponentActivity() {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
         }
-        viewModel.onResumeSelected(uri.toString())
+        val uriString = uri.toString()
+        val profileSnapshot = viewModel.uiState.value.profile
+        lifecycleScope.launch {
+            val parsed = withContext(Dispatchers.IO) {
+                ResumeParser.parseToProfile(
+                    context = applicationContext,
+                    uriString = uriString,
+                    existing = profileSnapshot.copy(resumeUri = uriString)
+                )
+            }
+            val autoFilled = parsed != profileSnapshot.copy(resumeUri = uriString)
+            viewModel.applyImportedResumeProfile(parsed, autoFilled)
+        }
+    }
+
+    private fun requestVoiceCapture(field: String) {
+        viewModel.beginVoiceCapture(field)
+        launchVoiceCaptureIfRequested()
     }
 
     private fun launchVoiceCaptureIfRequested() {
         val field = viewModel.uiState.value.dictationFocusField
         if (field.isBlank()) return
+        if (!VoiceDictationManager.isSpeechRecognitionAvailable(this)) {
+            viewModel.onVoiceCaptureUnavailable("Speech recognition service is not available on this device.")
+            return
+        }
         val granted = ContextCompat.checkSelfPermission(
             this,
             android.Manifest.permission.RECORD_AUDIO

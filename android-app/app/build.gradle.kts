@@ -77,6 +77,7 @@ dependencies {
     implementation("org.json:json:20240303")
     implementation("org.codeshipping:llama-kotlin-android:0.1.0")
     implementation("androidx.activity:activity-ktx:1.9.1")
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

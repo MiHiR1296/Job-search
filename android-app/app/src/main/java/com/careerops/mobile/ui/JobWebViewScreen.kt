@@ -1,7 +1,11 @@
 package com.careerops.mobile.ui
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -19,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -106,6 +111,20 @@ fun JobWebViewScreen(
                         Text("Refresh suggestions")
                     }
                 }
+                TextButton(
+                    onClick = {
+                        val target = webViewRef?.url ?: url
+                        if (target.isNotBlank()) {
+                            runCatching {
+                                val context = webViewRef?.context ?: return@runCatching
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open current page in browser (fallback for difficult logins)")
+                }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -117,12 +136,72 @@ fun JobWebViewScreen(
                         webViewRef = this
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
+                        settings.javaScriptCanOpenWindowsAutomatically = true
+                        settings.setSupportMultipleWindows(true)
+                        settings.setSupportZoom(true)
+                        settings.builtInZoomControls = true
+                        settings.displayZoomControls = false
+                        settings.userAgentString = settings.userAgentString + " CareerOpsMobileWebView/1.0"
                         settings.cacheMode = WebSettings.LOAD_DEFAULT
                         settings.loadsImagesAutomatically = true
                         settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        CookieManager.getInstance().setAcceptCookie(true)
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                         addJavascriptInterface(bridge, "CareerOpsBridge")
-                        webChromeClient = WebChromeClient()
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onCreateWindow(
+                                view: WebView?,
+                                isDialog: Boolean,
+                                isUserGesture: Boolean,
+                                resultMsg: android.os.Message?
+                            ): Boolean {
+                                val parent = view ?: return false
+                                val popup = WebView(parent.context).apply {
+                                    settings.javaScriptEnabled = true
+                                    settings.domStorageEnabled = true
+                                    settings.javaScriptCanOpenWindowsAutomatically = true
+                                    settings.setSupportMultipleWindows(true)
+                                    settings.userAgentString =
+                                        settings.userAgentString + " CareerOpsMobileWebView/1.0"
+                                    webViewClient = object : WebViewClient() {
+                                        override fun shouldOverrideUrlLoading(
+                                            view: WebView?,
+                                            request: WebResourceRequest?
+                                        ): Boolean {
+                                            val target = request?.url?.toString().orEmpty()
+                                            if (target.startsWith("http://") || target.startsWith("https://")) {
+                                                parent.loadUrl(target)
+                                            } else if (target.isNotBlank()) {
+                                                runCatching {
+                                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                                                }
+                                            }
+                                            return true
+                                        }
+                                    }
+                                }
+                                val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+                                transport.webView = popup
+                                resultMsg.sendToTarget()
+                                return true
+                            }
+                        }
                         webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?
+                            ): Boolean {
+                                val target = request?.url?.toString().orEmpty()
+                                return if (target.startsWith("http://") || target.startsWith("https://")) {
+                                    false
+                                } else {
+                                    runCatching {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                                    }
+                                    true
+                                }
+                            }
+
                             override fun onPageFinished(view: WebView?, pageUrl: String?) {
                                 super.onPageFinished(view, pageUrl)
                                 isLoading.value = false

@@ -120,6 +120,7 @@ class HybridLlmEngine(
             if (!shouldUseRemote(profile)) {
                 return@runCatching "API mode is not fully configured."
             }
+            val endpoint = resolveChatCompletionsEndpoint(profile.apiBaseUrl)
             val payload = JSONObject()
                 .put("model", profile.apiModel)
                 .put(
@@ -132,17 +133,34 @@ class HybridLlmEngine(
                 .toString()
 
             val req = Request.Builder()
-                .url(profile.apiBaseUrl.trimEnd('/') + "/chat/completions")
+                .url(endpoint)
                 .addHeader("Authorization", "Bearer ${profile.apiKey}")
                 .addHeader("Content-Type", "application/json")
                 .post(payload.toRequestBody("application/json".toMediaType()))
                 .build()
 
             httpClient.newCall(req).execute().use { res ->
+                val body = res.body?.string().orEmpty().take(1200)
                 if (!res.isSuccessful) {
-                    return@runCatching "API test failed (${res.code})."
+                    val bodyPreview = if (body.isBlank()) "(empty response body)" else body
+                    return@runCatching "API test failed (${res.code})\nEndpoint: $endpoint\n$bodyPreview"
                 }
-                "API connection looks OK."
+                val content = runCatching {
+                    val json = JSONObject(body)
+                    val choices = json.optJSONArray("choices")
+                    if (choices == null || choices.length() == 0) "" else {
+                        choices.getJSONObject(0)
+                            .optJSONObject("message")
+                            ?.optString("content", "")
+                            .orEmpty()
+                            .trim()
+                    }
+                }.getOrDefault("")
+                if (content.isNotBlank()) {
+                    "API connection looks OK.\nReply: ${content.take(120)}"
+                } else {
+                    "API connection looks OK.\nEndpoint: $endpoint"
+                }
             }
         }
     }
@@ -167,8 +185,9 @@ class HybridLlmEngine(
                 .put("temperature", 0.3)
                 .toString()
 
+            val endpoint = resolveChatCompletionsEndpoint(profile.apiBaseUrl)
             val req = Request.Builder()
-                .url(profile.apiBaseUrl.trimEnd('/') + "/chat/completions")
+                .url(endpoint)
                 .addHeader("Authorization", "Bearer ${profile.apiKey}")
                 .addHeader("Content-Type", "application/json")
                 .post(payload.toRequestBody("application/json".toMediaType()))
@@ -185,6 +204,15 @@ class HybridLlmEngine(
                 message.optString("content", "").trim()
             }
         }.getOrDefault("")
+    }
+
+    private fun resolveChatCompletionsEndpoint(baseUrl: String): String {
+        val normalized = baseUrl.trim().trimEnd('/')
+        return if (normalized.endsWith("/chat/completions", ignoreCase = true)) {
+            normalized
+        } else {
+            "$normalized/chat/completions"
+        }
     }
 }
 

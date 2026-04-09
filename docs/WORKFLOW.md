@@ -65,6 +65,25 @@
    - summarize into long-term memory,
    - reuse in future applications.
 
+### AI setup guidance (simplified)
+
+- **Local mode**: only local model path is shown.
+- **API mode**: API base URL, model, and key fields are shown (+ quick model presets).
+- API test now reads your current unsaved draft values and prints endpoint/error details in-app.
+
+### Resume-first onboarding
+
+- Onboarding now prioritizes resume import:
+  - tap **Choose from Files**,
+  - app auto-extracts available details from resume (name/email/phone/skills/experience hints),
+  - then you only fill missing fields.
+
+### WebView login fallback
+
+- For difficult auth pages, use:
+  - **Open current page in browser (fallback for difficult logins)**,
+  - complete login there, then continue capture/generation flow.
+
 ### Practical tips
 
 - Keep API mode only if you want stronger generation quality and you trust your endpoint.
