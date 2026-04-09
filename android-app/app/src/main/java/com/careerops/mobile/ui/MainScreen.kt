@@ -38,7 +38,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -296,7 +295,7 @@ private fun OnboardingTab(
     onStartVoice: (String) -> Unit,
     onPickResumeDocument: () -> Unit
 ) {
-    var draft by rememberSaveable(profile) { mutableStateOf(profile) }
+    var draft by remember(profile) { mutableStateOf(profile) }
     Column(
         modifier = Modifier
             .fillMaxSize()
