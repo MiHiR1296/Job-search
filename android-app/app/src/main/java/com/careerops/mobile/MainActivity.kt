@@ -2,6 +2,7 @@ package com.careerops.mobile
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
@@ -46,6 +47,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val resumePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        handlePickedDocument(uri)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -53,7 +60,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                MainScreen(viewModel = viewModel)
+                MainScreen(
+                    viewModel = viewModel,
+                    onPickResumeDocument = ::openResumeDocumentPicker
+                )
             }
         }
     }
@@ -78,8 +88,31 @@ class MainActivity : ComponentActivity() {
         }
         val stream = intent?.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
         if (stream != null) {
-            viewModel.saveProfile(viewModel.uiState.value.profile.copy(resumeUri = stream.toString()))
+            handlePickedDocument(stream)
         }
+    }
+
+    private fun openResumeDocumentPicker() {
+        resumePickerLauncher.launch(
+            arrayOf(
+                "application/pdf",
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "text/plain",
+                "application/*"
+            )
+        )
+    }
+
+    private fun handlePickedDocument(uri: Uri?) {
+        if (uri == null) return
+        runCatching {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+        viewModel.onResumeSelected(uri.toString())
     }
 
     private fun launchVoiceCaptureIfRequested() {

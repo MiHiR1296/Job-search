@@ -157,6 +157,7 @@ Build guide:
 
 1. Install APK from `apk/CareerOpsMobile-debug.apk`.
 2. Open app -> Onboarding tab -> fill details once and save.
+   - Tap **Choose from Files (PDF/DOC/TXT)** to pick resume/documents from Android file picker (no path typing needed).
 3. Optional but recommended:
    - Local mode: place GGUF at `/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf`
    - API mode: enter your own API base/model/key (key is encrypted locally).

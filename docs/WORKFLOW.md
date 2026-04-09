@@ -55,7 +55,7 @@
 1. From LinkedIn/WhatsApp/Instagram/browser, share job link to **Career Ops Mobile**.
 2. If link matches job patterns, app auto-starts one-tap flow:
    - opens in-app page,
-   - captures page text,
+   - captures page text (or waits for manual capture based on AI Setup),
    - extracts role/company/salary hints,
    - generates output and opens Results.
 3. Review recommendation + reasons in Results tab.
@@ -70,3 +70,4 @@
 - Keep API mode only if you want stronger generation quality and you trust your endpoint.
 - Keep local mode as fallback for offline/privacy-first usage.
 - Use one-tap flow first; use manual Job Input only when extraction is weak.
+- On Onboarding tab, use **Choose from Files** for resume/document selection (no manual path needed).

@@ -1,12 +1,12 @@
 package com.careerops.mobile.ui
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -50,7 +51,10 @@ import com.careerops.mobile.service.BubbleOverlayService
 private enum class MainTab { ONBOARD, AI_SETUP, JOB, WEBVIEW, RESULTS, MEMORY }
 
 @Composable
-fun MainScreen(viewModel: MainViewModel) {
+fun MainScreen(
+    viewModel: MainViewModel,
+    onPickResumeDocument: () -> Unit
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(MainTab.ONBOARD) }
@@ -123,7 +127,8 @@ fun MainScreen(viewModel: MainViewModel) {
                 MainTab.ONBOARD -> OnboardingTab(
                     profile = state.profile,
                     onSave = viewModel::saveProfile,
-                    onStartVoice = viewModel::beginVoiceCapture
+                    onStartVoice = viewModel::beginVoiceCapture,
+                    onPickResumeDocument = onPickResumeDocument
                 )
                 MainTab.AI_SETUP -> AiSetupTab(
                     state = state,
@@ -288,9 +293,10 @@ private fun AiSetupTab(
 private fun OnboardingTab(
     profile: CandidateProfile,
     onSave: (CandidateProfile) -> Unit,
-    onStartVoice: (String) -> Unit
+    onStartVoice: (String) -> Unit,
+    onPickResumeDocument: () -> Unit
 ) {
-    var draft by remember(profile) { mutableStateOf(profile) }
+    var draft by rememberSaveable(profile) { mutableStateOf(profile) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -317,12 +323,22 @@ private fun OnboardingTab(
         OutlinedTextField(draft.targetRole, { draft = draft.copy(targetRole = it) }, label = { Text("Target role") }, modifier = Modifier.fillMaxWidth())
         TextButton(onClick = { onStartVoice("targetRole") }) { Text("Dictate target role") }
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            draft.resumeUri,
-            { draft = draft.copy(resumeUri = it) },
-            label = { Text("Resume file path/URI (optional)") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 2
+        Text("Resume / documents", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(4.dp))
+        Button(
+            onClick = onPickResumeDocument,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Choose from Files (PDF/DOC/TXT)")
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            if (profile.resumeUri.isBlank()) {
+                "No document selected yet."
+            } else {
+                "Selected: ${extractDisplayFileName(profile.resumeUri)}"
+            },
+            style = MaterialTheme.typography.bodySmall
         )
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.yearsExperience, { draft = draft.copy(yearsExperience = it) }, label = { Text("Years experience") }, modifier = Modifier.fillMaxWidth())
@@ -349,10 +365,27 @@ private fun OnboardingTab(
             minLines = 5
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = { onSave(draft) }, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = {
+                onSave(
+                    draft.copy(
+                        // Keep the latest selected document URI even if local draft is stale.
+                        resumeUri = profile.resumeUri.ifBlank { draft.resumeUri }
+                    )
+                )
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Text("Save profile locally")
         }
     }
+}
+
+private fun extractDisplayFileName(uriText: String): String {
+    if (uriText.isBlank()) return "No document selected"
+    val parsed = runCatching { Uri.parse(uriText) }.getOrNull() ?: return "Document selected"
+    val raw = parsed.lastPathSegment?.substringAfterLast('/')?.trim().orEmpty()
+    return if (raw.isBlank()) "Document selected" else raw
 }
 
 @Composable
