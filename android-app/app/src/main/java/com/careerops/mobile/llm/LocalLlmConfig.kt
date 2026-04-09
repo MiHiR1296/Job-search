@@ -2,7 +2,7 @@ package com.careerops.mobile.llm
 
 data class LocalLlmConfig(
     val provider: String = "llama.cpp-android",
-    val modelPath: String = "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+    val modelPath: String = "",
     val contextSize: Int = 2048,
     val maxTokens: Int = 600,
     val temperature: Float = 0.3f,

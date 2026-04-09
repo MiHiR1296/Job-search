@@ -15,6 +15,11 @@ This guide is for the new Android app under `android-app/`.
   - app auto-switches to In-App Page to capture JD,
   - then auto-generates score + recommendations + outputs,
   - and auto-switches to Results when done
+- Smart capture controls:
+  - dedicated **AI Setup** tab for provider configuration (local/API),
+  - API connection test button,
+  - manual capture mode switch to avoid early login/ads-page misreads,
+  - "Capture + Generate" button in WebView for user-controlled extraction timing
 - Share-intent autopilot:
   - when you share a likely job link from other apps (LinkedIn/WhatsApp/Instagram/browser),
   - app auto-detects it as a job link and starts one-tap flow immediately
@@ -64,7 +69,7 @@ If you later add cloud APIs, keep them optional and off by default.
 2. Fill profile once in Onboarding tab (including provider mode).
 3. Paste/share job URL.
 4. If the shared URL looks like a job link, app auto-starts one-tap flow without extra taps.
-5. Optional manual path: use In-App Page tab to capture/refresh, then tap "Generate full output".
+5. If page initially shows login/ads, keep Manual Capture Mode ON and press "Capture + Generate" only on real job content.
 6. Dictate your profile and stories in Onboarding/Memory tabs; app summarizes durable insights.
 7. App creates files in internal storage:
    - `files/mobile-packs/<date-slug>/...`

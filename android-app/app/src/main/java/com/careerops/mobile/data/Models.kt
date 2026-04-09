@@ -22,6 +22,7 @@ data class CandidateProfile(
     val requiresSponsorship: String = "No",
     val willingToRelocate: String = "Yes",
     val llmProviderMode: String = "local",
+    val localModelPath: String = "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
     val apiBaseUrl: String = "https://api.openai.com/v1",
     val apiModel: String = "gpt-4o-mini",
     val apiKey: String = ""

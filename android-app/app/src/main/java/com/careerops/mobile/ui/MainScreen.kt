@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Web
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,6 +27,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChip
@@ -39,11 +42,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.careerops.mobile.data.CandidateProfile
 import com.careerops.mobile.service.BubbleOverlayService
 
-private enum class MainTab { ONBOARD, JOB, WEBVIEW, RESULTS, MEMORY }
+private enum class MainTab { ONBOARD, AI_SETUP, JOB, WEBVIEW, RESULTS, MEMORY }
 
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
@@ -67,13 +71,17 @@ fun MainScreen(viewModel: MainViewModel) {
     }
     LaunchedEffect(state.shouldAutoStartFromShare, state.url) {
         if (state.shouldAutoStartFromShare && state.url.isNotBlank()) {
-            viewModel.startAutoGenerateFromUrlOnly()
+            viewModel.startAutoFlowFromShare()
             viewModel.onSharedJobAutoStartHandled()
             selectedTab = MainTab.WEBVIEW
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 Tab(
@@ -81,6 +89,12 @@ fun MainScreen(viewModel: MainViewModel) {
                     onClick = { selectedTab = MainTab.ONBOARD },
                     text = { Text("Onboarding") },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) }
+                )
+                Tab(
+                    selected = selectedTab == MainTab.AI_SETUP,
+                    onClick = { selectedTab = MainTab.AI_SETUP },
+                    text = { Text("AI Setup") },
+                    icon = { Icon(Icons.Default.Tune, contentDescription = null) }
                 )
                 Tab(
                     selected = selectedTab == MainTab.JOB,
@@ -110,6 +124,12 @@ fun MainScreen(viewModel: MainViewModel) {
                     profile = state.profile,
                     onSave = viewModel::saveProfile,
                     onStartVoice = viewModel::beginVoiceCapture
+                )
+                MainTab.AI_SETUP -> AiSetupTab(
+                    state = state,
+                    onSave = viewModel::saveProfile,
+                    onTestApi = viewModel::testApiConnection,
+                    onManualCaptureMode = viewModel::setManualCaptureMode
                 )
                 MainTab.JOB -> JobInputTab(
                     state = state,
@@ -141,8 +161,10 @@ fun MainScreen(viewModel: MainViewModel) {
                     } else {
                         JobWebViewScreen(
                             url = state.url,
+                            autoCaptureOnLoad = !state.manualCaptureMode,
                             onPageTextCaptured = { viewModel.updateExtractedPageText(it) },
-                            onVisibleTextCaptured = { viewModel.refreshSuggestionsFromVisibleText(it) }
+                            onVisibleTextCaptured = { viewModel.refreshSuggestionsFromVisibleText(it) },
+                            onCaptureAndGenerate = { viewModel.requestGenerateAfterManualCapture() }
                         )
                     }
                 }
@@ -156,6 +178,109 @@ fun MainScreen(viewModel: MainViewModel) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun AiSetupTab(
+    state: MainUiState,
+    onSave: (CandidateProfile) -> Unit,
+    onTestApi: () -> Unit,
+    onManualCaptureMode: (Boolean) -> Unit
+) {
+    var draft by remember(state.profile) { mutableStateOf(state.profile) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Text("AI Setup", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Configure local/API model access once. This keeps app flow cleaner and avoids setup friction in Job Input.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = draft.llmProviderMode.equals("local", ignoreCase = true),
+                onClick = { draft = draft.copy(llmProviderMode = "local") },
+                label = { Text("Local model mode") },
+                colors = FilterChipDefaults.filterChipColors()
+            )
+            FilterChip(
+                selected = draft.llmProviderMode.equals("api", ignoreCase = true),
+                onClick = { draft = draft.copy(llmProviderMode = "api") },
+                label = { Text("API mode") },
+                colors = FilterChipDefaults.filterChipColors()
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            draft.localModelPath,
+            { draft = draft.copy(localModelPath = it) },
+            label = { Text("Local GGUF model path") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            draft.apiBaseUrl,
+            { draft = draft.copy(apiBaseUrl = it) },
+            label = { Text("API Base URL") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            draft.apiModel,
+            { draft = draft.copy(apiModel = it) },
+            label = { Text("API Model") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            draft.apiKey,
+            { draft = draft.copy(apiKey = it) },
+            label = { Text("API Key (encrypted locally)") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = { onSave(draft) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Save AI setup")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = onTestApi,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.isTestingApiConnection
+        ) {
+            Text("Test API connection")
+        }
+        if (state.isTestingApiConnection) {
+            Spacer(modifier = Modifier.height(8.dp))
+            CircularProgressIndicator()
+        }
+        if (state.apiTestStatus.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(state.apiTestStatus, style = MaterialTheme.typography.bodySmall)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Manual capture mode", style = MaterialTheme.typography.titleSmall)
+            Switch(
+                checked = state.manualCaptureMode,
+                onCheckedChange = onManualCaptureMode
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            "ON = app waits for your Capture + Generate button (safer when login pages/ads appear first).",
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 
@@ -177,22 +302,6 @@ private fun OnboardingTab(
         Text("Fill once, update anytime. Stored locally on device.", style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(16.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = draft.llmProviderMode.equals("local", ignoreCase = true),
-                onClick = { draft = draft.copy(llmProviderMode = "local") },
-                label = { Text("Local mode") },
-                colors = FilterChipDefaults.filterChipColors()
-            )
-            FilterChip(
-                selected = draft.llmProviderMode.equals("api", ignoreCase = true),
-                onClick = { draft = draft.copy(llmProviderMode = "api") },
-                label = { Text("API key mode") },
-                colors = FilterChipDefaults.filterChipColors()
-            )
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-
         OutlinedTextField(draft.fullName, { draft = draft.copy(fullName = it) }, label = { Text("Full name") }, modifier = Modifier.fillMaxWidth())
         TextButton(onClick = { onStartVoice("fullName") }) { Text("Dictate full name") }
         Spacer(modifier = Modifier.height(8.dp))
@@ -212,9 +321,9 @@ private fun OnboardingTab(
             draft.resumeUri,
             { draft = draft.copy(resumeUri = it) },
             label = { Text("Resume file path/URI (optional)") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2
         )
-        TextButton(onClick = { onStartVoice("resumeUri") }) { Text("Dictate resume path/notes") }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(draft.yearsExperience, { draft = draft.copy(yearsExperience = it) }, label = { Text("Years experience") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
@@ -238,30 +347,6 @@ private fun OnboardingTab(
             label = { Text("Long-term career memory") },
             modifier = Modifier.fillMaxWidth(),
             minLines = 5
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Text("LLM Provider Settings", style = MaterialTheme.typography.titleSmall)
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            draft.apiBaseUrl,
-            { draft = draft.copy(apiBaseUrl = it) },
-            label = { Text("API Base URL") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            draft.apiModel,
-            { draft = draft.copy(apiModel = it) },
-            label = { Text("API Model") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            draft.apiKey,
-            { draft = draft.copy(apiKey = it) },
-            label = { Text("API Key (encrypted locally via Android Keystore)") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 2
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = { onSave(draft) }, modifier = Modifier.fillMaxWidth()) {
@@ -351,7 +436,7 @@ private fun JobInputTab(
                 modifier = Modifier.weight(1f),
                 enabled = !state.isGenerating && !state.isAutoGenerating
             ) {
-                Text("One-tap URL flow")
+                Text(if (state.manualCaptureMode) "Open for manual capture" else "One-tap URL flow")
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -372,7 +457,11 @@ private fun JobInputTab(
         if (state.isAutoGenerating) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "Auto mode running: in-app page capture, scoring, and generation are in progress.",
+                if (state.manualCaptureMode) {
+                    "Manual mode: open In-App Page tab and press Capture + Generate."
+                } else {
+                    "Auto mode running: in-app page capture, scoring, and generation are in progress."
+                },
                 style = MaterialTheme.typography.bodySmall
             )
         }

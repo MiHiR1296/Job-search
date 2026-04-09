@@ -50,7 +50,16 @@ data class MainUiState(
     val dictationFocusField: String = "",
     val voiceDraftNarrative: String = "",
     val isSummarizingMemory: Boolean = false,
-    val knowledgePrompt: String = "Tell me your strongest project story with measurable impact."
+    val knowledgePrompt: String = "Tell me your strongest project story with measurable impact.",
+    val manualCaptureMode: Boolean = true,
+    val pendingGenerateAfterManualCapture: Boolean = false,
+    val apiTestStatus: String = "",
+    val isTestingApiConnection: Boolean = false,
+    val aiSetupModeDraft: String = "local",
+    val aiSetupLocalModelPathDraft: String = "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+    val aiSetupApiBaseUrlDraft: String = "https://api.openai.com/v1",
+    val aiSetupApiModelDraft: String = "gpt-4o-mini",
+    val aiSetupApiKeyDraft: String = ""
 )
 
 class MainViewModel(
@@ -76,6 +85,7 @@ class MainViewModel(
         viewModelScope.launch {
             profileStore.profileFlow.collect { profile ->
                 _uiState.value = _uiState.value.copy(profile = profile)
+                syncAiDraftsFromProfile(profile)
             }
         }
     }
@@ -130,9 +140,10 @@ class MainViewModel(
             detectedSalaryHint = detectedSalary
         )
         _uiState.value = next
-        if (next.pendingAutoGenerateAfterExtraction) {
+        if (next.pendingAutoGenerateAfterExtraction || next.pendingGenerateAfterManualCapture) {
             _uiState.value = next.copy(
                 pendingAutoGenerateAfterExtraction = false,
+                pendingGenerateAfterManualCapture = false,
                 statusMessage = if (cleaned.isBlank()) {
                     "Page had little readable text. Generating with available input."
                 } else {
@@ -151,11 +162,62 @@ class MainViewModel(
         _uiState.value = _uiState.value.copy(formSuggestions = suggestions)
     }
 
+    fun requestGenerateAfterManualCapture() {
+        val state = _uiState.value
+        if (state.url.isBlank()) {
+            _uiState.value = state.copy(statusMessage = "Job URL is required.")
+            return
+        }
+        _uiState.value = state.copy(
+            pendingGenerateAfterManualCapture = true,
+            statusMessage = "Waiting for manual capture, then generating."
+        )
+    }
+
+    fun setManualCaptureMode(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(manualCaptureMode = enabled)
+    }
+
     fun saveProfile(updated: CandidateProfile) {
         viewModelScope.launch {
             profileStore.saveProfile(updated)
-            _uiState.value = _uiState.value.copy(statusMessage = "Profile saved locally.")
+            _uiState.value = _uiState.value.copy(
+                profile = updated,
+                statusMessage = "Profile saved locally."
+            )
         }
+    }
+
+    fun updateAiSetupModeDraft(value: String) {
+        _uiState.value = _uiState.value.copy(aiSetupModeDraft = value)
+    }
+
+    fun updateAiSetupLocalModelPathDraft(value: String) {
+        _uiState.value = _uiState.value.copy(aiSetupLocalModelPathDraft = value)
+    }
+
+    fun updateAiSetupApiBaseUrlDraft(value: String) {
+        _uiState.value = _uiState.value.copy(aiSetupApiBaseUrlDraft = value)
+    }
+
+    fun updateAiSetupApiModelDraft(value: String) {
+        _uiState.value = _uiState.value.copy(aiSetupApiModelDraft = value)
+    }
+
+    fun updateAiSetupApiKeyDraft(value: String) {
+        _uiState.value = _uiState.value.copy(aiSetupApiKeyDraft = value)
+    }
+
+    fun saveAiSetupDraftsToProfile() {
+        val state = _uiState.value
+        val updated = state.profile.copy(
+            llmProviderMode = state.aiSetupModeDraft,
+            localModelPath = state.aiSetupLocalModelPathDraft,
+            apiBaseUrl = state.aiSetupApiBaseUrlDraft,
+            apiModel = state.aiSetupApiModelDraft,
+            apiKey = state.aiSetupApiKeyDraft
+        )
+        saveProfile(updated)
     }
 
     fun onSharedJobAutoStartHandled() {
@@ -244,6 +306,21 @@ class MainViewModel(
             _uiState.value = state.copy(statusMessage = "Job URL is required.")
             return
         }
+        if (state.manualCaptureMode) {
+            _uiState.value = state.copy(
+                isAutoGenerating = true,
+                pendingAutoGenerateAfterExtraction = false,
+                pendingGenerateAfterManualCapture = false,
+                autoFlowRequestedAtMs = System.currentTimeMillis(),
+                extractedPageText = "",
+                detectedCompany = "",
+                detectedRole = "",
+                detectedSalaryHint = "",
+                shouldAutoStartFromShare = false,
+                statusMessage = "Manual capture mode is ON. Open In-App Page and press Capture + Generate."
+            )
+            return
+        }
         _uiState.value = state.copy(
             isAutoGenerating = true,
             pendingAutoGenerateAfterExtraction = true,
@@ -255,6 +332,24 @@ class MainViewModel(
             shouldAutoStartFromShare = false,
             statusMessage = "Opening page and extracting JD. Generation will start automatically."
         )
+    }
+
+    fun startAutoFlowFromShare() {
+        val state = _uiState.value
+        if (state.manualCaptureMode) {
+            _uiState.value = state.copy(
+                shouldAutoStartFromShare = false,
+                isAutoGenerating = true,
+                autoFlowRequestedAtMs = System.currentTimeMillis(),
+                extractedPageText = "",
+                detectedCompany = "",
+                detectedRole = "",
+                detectedSalaryHint = "",
+                statusMessage = "Job link detected. Manual capture mode is ON. Open In-App Page and tap Capture + Generate."
+            )
+            return
+        }
+        startAutoGenerateFromUrlOnly()
     }
 
     fun generatePack() {
@@ -324,6 +419,49 @@ class MainViewModel(
         }
     }
 
+    fun testApiConnection() {
+        val state = _uiState.value
+        viewModelScope.launch {
+            _uiState.value = state.copy(isTestingApiConnection = true, apiTestStatus = "")
+            val profile = state.profile
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    if (profile.llmProviderMode != "api") {
+                        return@runCatching "Switch to API key mode first."
+                    }
+                    if (profile.apiBaseUrl.isBlank() || profile.apiModel.isBlank() || profile.apiKey.isBlank()) {
+                        return@runCatching "Fill API Base URL, model, and key."
+                    }
+                    if (llmEngine is HybridLlmEngine) {
+                        llmEngine.pingApi(profile).getOrElse { err ->
+                            "API test failed: ${err.message ?: "Unknown error"}"
+                        }
+                    } else {
+                        val probe = JobInput(
+                            company = "API Connectivity Check",
+                            role = "Test",
+                            url = "https://example.com",
+                            jdText = "Test prompt for API connectivity."
+                        )
+                        val response = llmEngine.suggestApplyDecision(probe, profile)
+                        if (response.isBlank()) {
+                            "No response received. Check endpoint, model, and key permissions."
+                        } else {
+                            "API connection looks OK."
+                        }
+                    }
+                }.getOrElse { err ->
+                    "API test failed: ${err.message ?: "Unknown error"}"
+                }
+            }
+            _uiState.value = _uiState.value.copy(
+                isTestingApiConnection = false,
+                apiTestStatus = result,
+                statusMessage = result
+            )
+        }
+    }
+
     private fun writeGeneratedOutputs(
         folderName: String,
         jobInput: JobInput,
@@ -346,6 +484,16 @@ class MainViewModel(
     private fun extractFirstUrl(text: String): String {
         val match = Regex("""https?://[^\s]+""", RegexOption.IGNORE_CASE).find(text)?.value.orEmpty()
         return match.trim().trimEnd('.', ',', ';', ')', ']', '}')
+    }
+
+    private fun syncAiDraftsFromProfile(profile: CandidateProfile) {
+        _uiState.value = _uiState.value.copy(
+            aiSetupModeDraft = profile.llmProviderMode,
+            aiSetupLocalModelPathDraft = profile.localModelPath,
+            aiSetupApiBaseUrlDraft = profile.apiBaseUrl,
+            aiSetupApiModelDraft = profile.apiModel,
+            aiSetupApiKeyDraft = profile.apiKey
+        )
     }
 }
 

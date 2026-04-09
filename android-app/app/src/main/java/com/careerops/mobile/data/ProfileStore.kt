@@ -38,6 +38,7 @@ class ProfileStore(private val context: Context) {
             requiresSponsorship = prefs[keys.requiresSponsorship] ?: "No",
             willingToRelocate = prefs[keys.willingToRelocate] ?: "Yes",
             llmProviderMode = prefs[keys.llmProviderMode] ?: "local",
+            localModelPath = prefs[keys.localModelPath] ?: "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
             apiBaseUrl = prefs[keys.apiBaseUrl] ?: "https://api.openai.com/v1",
             apiModel = prefs[keys.apiModel] ?: "gpt-4o-mini",
             apiKey = if (decryptedApiKey.isNotBlank()) decryptedApiKey else (prefs[keys.apiKeyLegacy] ?: "")
@@ -67,6 +68,7 @@ class ProfileStore(private val context: Context) {
             prefs[keys.requiresSponsorship] = profile.requiresSponsorship
             prefs[keys.willingToRelocate] = profile.willingToRelocate
             prefs[keys.llmProviderMode] = profile.llmProviderMode
+            prefs[keys.localModelPath] = profile.localModelPath
             prefs[keys.apiBaseUrl] = profile.apiBaseUrl
             prefs[keys.apiModel] = profile.apiModel
             prefs[keys.apiKeyEncrypted] = crypto.encrypt(profile.apiKey)
@@ -96,6 +98,7 @@ class ProfileStore(private val context: Context) {
         val requiresSponsorship = stringPreferencesKey("requires_sponsorship")
         val willingToRelocate = stringPreferencesKey("willing_to_relocate")
         val llmProviderMode = stringPreferencesKey("llm_provider_mode")
+        val localModelPath = stringPreferencesKey("local_model_path")
         val apiBaseUrl = stringPreferencesKey("api_base_url")
         val apiModel = stringPreferencesKey("api_model")
         val apiKeyLegacy = stringPreferencesKey("api_key")

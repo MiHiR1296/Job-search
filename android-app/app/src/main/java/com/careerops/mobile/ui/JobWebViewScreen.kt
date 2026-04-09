@@ -49,11 +49,18 @@ private class PageCaptureBridge(
 @Composable
 fun JobWebViewScreen(
     url: String,
+    autoCaptureOnLoad: Boolean = true,
     onPageTextCaptured: (String) -> Unit,
-    onVisibleTextCaptured: (String) -> Unit
+    onVisibleTextCaptured: (String) -> Unit,
+    onCaptureAndGenerate: (() -> Unit)? = null
 ) {
     val isLoading = remember { mutableStateOf(true) }
-    val bridge = remember { PageCaptureBridge(onPageTextCaptured, onVisibleTextCaptured) }
+    val bridge = remember(onPageTextCaptured, onVisibleTextCaptured) {
+        PageCaptureBridge(
+            onPageTextCaptured = onPageTextCaptured,
+            onVisibleTextCaptured = onVisibleTextCaptured
+        )
+    }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
     fun requestCapture() {
@@ -84,10 +91,13 @@ fun JobWebViewScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { requestCapture() },
+                        onClick = {
+                            requestCapture()
+                            onCaptureAndGenerate?.invoke()
+                        },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Capture page text")
+                        Text(if (onCaptureAndGenerate != null) "Capture + Generate" else "Capture page text")
                     }
                     Button(
                         onClick = { requestCapture() },
@@ -116,7 +126,9 @@ fun JobWebViewScreen(
                             override fun onPageFinished(view: WebView?, pageUrl: String?) {
                                 super.onPageFinished(view, pageUrl)
                                 isLoading.value = false
-                                requestCapture()
+                                if (autoCaptureOnLoad) {
+                                    requestCapture()
+                                }
                             }
                         }
                         loadUrl(url)

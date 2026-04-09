@@ -141,6 +141,8 @@ Current app in code:
 - per-job pack generation in app storage,
 - one-tap URL-only flow (auto-opens in-app page, captures text, auto-generates outputs),
 - share-link autopilot (shared likely job URLs auto-start one-tap flow),
+- dedicated AI Setup tab (provider mode, local model path, API test),
+- manual capture mode to avoid login/ads/skip-content misreads before generation,
 - local on-device LLM runtime path (llama.cpp Android binding; Qwen2.5-1.5B GGUF target),
 - hybrid LLM mode with remote API fallback,
 - voice dictation onboarding/memory capture with long-term memory summarization,

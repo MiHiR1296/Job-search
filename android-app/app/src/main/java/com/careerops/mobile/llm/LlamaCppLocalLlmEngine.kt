@@ -42,7 +42,7 @@ class LlamaCppLocalLlmEngine(
             <|im_end|>
             <|im_start|>assistant
         """.trimIndent()
-        val local = generateWithLocalModel(prompt)
+        val local = generateWithLocalModel(prompt, profile)
         return if (local.isNotBlank()) local else fallbackEngine.generateCoverLetter(jobInput, profile)
     }
 
@@ -67,7 +67,7 @@ class LlamaCppLocalLlmEngine(
             <|im_end|>
             <|im_start|>assistant
         """.trimIndent()
-        val local = generateWithLocalModel(prompt)
+        val local = generateWithLocalModel(prompt, profile)
         return if (local.isNotBlank()) local else fallbackEngine.generateResumeHighlights(jobInput, profile)
     }
 
@@ -92,7 +92,7 @@ class LlamaCppLocalLlmEngine(
             <|im_end|>
             <|im_start|>assistant
         """.trimIndent()
-        val local = normalizeDecision(generateWithLocalModel(prompt))
+        val local = normalizeDecision(generateWithLocalModel(prompt, profile))
         return if (local == "Review") fallbackEngine.suggestApplyDecision(jobInput, profile) else local
     }
 
@@ -122,7 +122,7 @@ class LlamaCppLocalLlmEngine(
             <|im_end|>
             <|im_start|>assistant
         """.trimIndent()
-        val local = generateWithLocalModel(prompt)
+        val local = generateWithLocalModel(prompt, profile)
         return if (local.isNotBlank()) {
             local
         } else {
@@ -130,8 +130,10 @@ class LlamaCppLocalLlmEngine(
         }
     }
 
-    private suspend fun generateWithLocalModel(prompt: String): String {
-        val modelPath = config.modelPath.trim()
+    private suspend fun generateWithLocalModel(prompt: String, profile: CandidateProfile): String {
+        val modelPath = profile.localModelPath.trim().ifBlank {
+            "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+        }
         if (modelPath.isBlank()) return ""
         val engine = loadModelIfNeeded(modelPath) ?: return ""
         return runCatching { engine.generate(prompt).trim() }.getOrDefault("")
@@ -171,5 +173,6 @@ class LlamaCppLocalLlmEngine(
             else -> "Review"
         }
     }
+
 }
 

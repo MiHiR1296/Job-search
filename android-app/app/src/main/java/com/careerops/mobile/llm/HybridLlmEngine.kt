@@ -115,6 +115,38 @@ class HybridLlmEngine(
         return localEngine.summarizeCareerMemory(existingMemory, latestNarrative, profile)
     }
 
+    suspend fun pingApi(profile: CandidateProfile): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (!shouldUseRemote(profile)) {
+                return@runCatching "API mode is not fully configured."
+            }
+            val payload = JSONObject()
+                .put("model", profile.apiModel)
+                .put(
+                    "messages",
+                    JSONArray()
+                        .put(JSONObject().put("role", "system").put("content", "You are a connectivity probe."))
+                        .put(JSONObject().put("role", "user").put("content", "Reply with: ok"))
+                )
+                .put("temperature", 0.0)
+                .toString()
+
+            val req = Request.Builder()
+                .url(profile.apiBaseUrl.trimEnd('/') + "/chat/completions")
+                .addHeader("Authorization", "Bearer ${profile.apiKey}")
+                .addHeader("Content-Type", "application/json")
+                .post(payload.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            httpClient.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) {
+                    return@runCatching "API test failed (${res.code})."
+                }
+                "API connection looks OK."
+            }
+        }
+    }
+
     private fun shouldUseRemote(profile: CandidateProfile): Boolean {
         return profile.llmProviderMode.equals("api", ignoreCase = true) &&
             profile.apiKey.isNotBlank() &&
