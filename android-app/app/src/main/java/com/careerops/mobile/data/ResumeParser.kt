@@ -68,7 +68,8 @@ object ResumeParser {
             yearsExperience = existing.yearsExperience.ifBlank { years },
             strengths = existingStrengths.joinToString(", "),
             achievements = existingAchievements.joinToString(", "),
-            resumeUri = uriString
+            resumeUri = uriString,
+            resumeTextSnapshot = normalized.take(8000)
         )
     }
 

@@ -1,5 +1,7 @@
 package com.careerops.mobile.web
 
+import com.careerops.mobile.data.StructuredJobDraft
+
 object JobPageExtractor {
     private val noiseTokens = listOf(
         "cookie",
@@ -74,10 +76,57 @@ object JobPageExtractor {
         } ?: ""
     }
 
-    fun detectSalary(text: String): String {
-        val regex = Regex("""(?i)(₹|rs\.?|inr)\s?[0-9,]+(\s?-\s?(₹|rs\.?|inr)?\s?[0-9,]+)?|\b[0-9]{1,3}\s?lpa\b|\bctc\b""")
-        return regex.find(text)?.value?.trim() ?: ""
+    fun detectSalary(text: String): String = detectSalaryExpanded(text)
+
+    /**
+     * INR/LPA/CTC plus Indeed-style monthly (USD/INR), per hour, and generic ranges.
+     */
+    fun detectSalaryExpanded(text: String): String {
+        if (text.isBlank()) return ""
+        val patterns = listOf(
+            // INR / LPA / CTC (existing)
+            Regex("""(?i)(₹|rs\.?|inr)\s?[0-9][0-9,.\s]*(?:\s?-\s?(?:₹|rs\.?|inr)?\s?[0-9][0-9,.\s]*)?"""),
+            Regex("""(?i)\b[0-9]{1,3}\s?lpa\b"""),
+            Regex("""(?i)\bctc\b\s*[:\-]?\s*(₹|rs\.?|inr)?\s*[0-9][0-9,.\s]*"""),
+            // USD / month (Indeed, etc.)
+            Regex("""(?i)\$\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(/|\s*per\s*)?\s*(mo|month|monthly)\b"""),
+            Regex("""(?i)\b[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*usd\s*(/|\s*per\s*)?\s*(mo|month|monthly)\b"""),
+            Regex("""(?i)\b[0-9][0-9,]*\s*k\s*/\s*mo\b"""),
+            Regex("""(?i)\b[0-9][0-9,]{2,}\s*(?:per\s+month|/month|monthly)\b"""),
+            // EUR / GBP monthly
+            Regex("""(?i)(€|£)\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(/|\s*per\s*)?\s*(mo|month|monthly)\b"""),
+            // Per hour
+            Regex("""(?i)\$\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(/|\s*per\s*)?\s*(hr|hour)\b"""),
+            Regex("""(?i)\b[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*/\s*hr\b""")
+        )
+        val hits = patterns.mapNotNull { rx -> rx.find(text)?.value?.trim()?.takeIf { it.isNotBlank() } }
+        return hits.firstOrNull() ?: ""
     }
+
+    /**
+     * Prepend structured JobPosting fields from JSON-LD so downstream extractors and LLMs see pay/title.
+     */
+    fun mergeJsonLdIntoPageText(cleanInnerText: String, jsonLdConcatenated: String, maxChars: Int = 14000): String {
+        val draft = JobPostingJsonLdParser.parseFromConcatenatedBlocks(jsonLdConcatenated) ?: return cleanInnerText
+        val header = buildString {
+            appendLine("---STRUCTURED_JOB_METADATA---")
+            if (draft.company.isNotBlank()) appendLine("Employer: ${draft.company}")
+            if (draft.role.isNotBlank()) appendLine("Title: ${draft.role}")
+            if (draft.location.isNotBlank()) appendLine("Location: ${draft.location}")
+            if (draft.salaryRaw.isNotBlank()) {
+                appendLine("Compensation (schema): ${draft.salaryRaw} (${draft.payPeriodHint})")
+            }
+            if (draft.responsibilitiesSnippet.isNotBlank()) {
+                appendLine("Description (schema excerpt):")
+                appendLine(draft.responsibilitiesSnippet.take(2500))
+            }
+            appendLine("---END_STRUCTURED_JOB_METADATA---")
+        }
+        return (header + "\n" + cleanInnerText).take(maxChars)
+    }
+
+    fun structuredDraftFromJsonLd(jsonLdConcatenated: String): StructuredJobDraft? =
+        JobPostingJsonLdParser.parseFromConcatenatedBlocks(jsonLdConcatenated)
 
     fun isLikelyJobUrl(url: String): Boolean {
         val normalized = url.lowercase().trim()

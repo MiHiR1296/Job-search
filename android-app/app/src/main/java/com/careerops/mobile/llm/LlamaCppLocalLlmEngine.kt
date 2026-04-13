@@ -2,6 +2,7 @@ package com.careerops.mobile.llm
 
 import com.careerops.mobile.data.CandidateProfile
 import com.careerops.mobile.data.JobInput
+import com.careerops.mobile.data.StructuredJobDraft
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.codeshipping.llamakotlin.LlamaModel
@@ -34,6 +35,7 @@ class LlamaCppLocalLlmEngine(
             Target role: ${profile.targetRole}
             Strengths: ${profile.strengths}
             Achievements: ${profile.achievements}
+            ${contextBlock(jobInput, profile)}
 
             Constraints:
             - under 220 words
@@ -62,6 +64,7 @@ class LlamaCppLocalLlmEngine(
             Experience: ${profile.yearsExperience}
             Strengths: ${profile.strengths}
             Achievements: ${profile.achievements}
+            ${contextBlock(jobInput, profile)}
 
             Return 6-10 bullets, each short and action-focused.
             <|im_end|>
@@ -87,6 +90,7 @@ class LlamaCppLocalLlmEngine(
             Candidate strengths: ${profile.strengths}
             Expected CTC LPA: ${profile.expectedCtcLpa}
             Minimum acceptable LPA: ${profile.minimumAcceptableLpa}
+            ${contextBlock(jobInput, profile)}
 
             Respond with one label only.
             <|im_end|>
@@ -94,6 +98,23 @@ class LlamaCppLocalLlmEngine(
         """.trimIndent()
         val local = normalizeDecision(generateWithLocalModel(prompt, profile))
         return if (local == "Review") fallbackEngine.suggestApplyDecision(jobInput, profile) else local
+    }
+
+    override suspend fun extractStructuredJobFromJd(rawJd: String, profile: CandidateProfile): StructuredJobDraft? {
+        val prompt = """
+             <|im_start|>system
+            Extract job fields from noisy job page text. Reply with a single JSON object only, keys exactly:
+            {"company":"","role":"","location":"","salary_raw":"","pay_period":"","responsibilities":""}
+            pay_period must be one of: monthly, yearly, lpa, hourly, unknown. No markdown, no prose.
+             <|im_end|>
+             <|im_start|>user
+            ${rawJd.take(12000)}
+             <|im_end|>
+             <|im_start|>assistant
+        """.trimIndent()
+        val raw = generateWithLocalModel(prompt, profile)
+        val parsed = LlmStructuredJobParser.parseStructuredJobJson(raw)
+        return parsed ?: fallbackEngine.extractStructuredJobFromJd(rawJd, profile)
     }
 
     override suspend fun summarizeCareerMemory(
@@ -129,6 +150,21 @@ class LlamaCppLocalLlmEngine(
             fallbackEngine.summarizeCareerMemory(existingMemory, latestNarrative, profile)
         }
     }
+
+    private fun contextBlock(jobInput: JobInput, profile: CandidateProfile): String = buildString {
+        if (profile.careerMemory.isNotBlank()) {
+            appendLine("Long-term career memory:")
+            appendLine(profile.careerMemory.take(5000))
+        }
+        if (jobInput.jobSpecificNotes.isNotBlank()) {
+            appendLine("Per-job notes (candidate wants to emphasize for this role):")
+            appendLine(jobInput.jobSpecificNotes.take(2000))
+        }
+        if (jobInput.resumeSummaryForPrompt.isNotBlank()) {
+            appendLine("Resume excerpts:")
+            appendLine(jobInput.resumeSummaryForPrompt.take(4500))
+        }
+    }.toString().trim().let { if (it.isNotBlank()) "\n$it" else "" }
 
     private suspend fun generateWithLocalModel(prompt: String, profile: CandidateProfile): String {
         val modelPath = profile.localModelPath.trim().ifBlank {

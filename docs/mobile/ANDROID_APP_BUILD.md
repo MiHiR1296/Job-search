@@ -119,12 +119,22 @@ Keep prompts concise and context trimmed to avoid latency spikes.
 
 Recommendation for first production attempt on OnePlus 12R:
 
-1. Start with Qwen2.5 1.5B quantized.
+1. Use **Qwen2.5 7B–8B instruct Q4_K_M** on device when you want stronger reasoning; keep **1.5B** only for smoke tests.
 2. Measure:
    - first-token latency,
    - total generation time for ~220-word cover letter,
    - thermal behavior over 5 consecutive generations.
-3. Move to larger model only if experience remains responsive.
+3. If the phone cannot hold a 7B model in RAM, use **local heuristics + JSON-LD extraction** for job fields and switch **AI Setup → API mode** for cover-letter quality when needed.
+
+## Manual verification checklist (post UX overhaul)
+
+- Cold install: Onboarding wizard appears; resume upload auto-fills; finishing onboarding lands on **Job** tab.
+- Relaunch: app opens on **Job** tab (onboarding not repeated).
+- Share a LinkedIn job URL: one-tap flow fills company/role from page; Results shows fit score.
+- Indeed (or heavy login): **Open job in Custom Tab** loads the listing; return to app, use **In-App Page** or paste JD override if needed.
+- Monthly pay line (e.g. `$X/mo`): salary hint appears in Job Input “Detected”; scoring adds a note when pay is not LPA.
+- Results: add **Notes for this job** and **Regenerate with these notes**; cover letter should reflect those notes.
+- JSON-LD: job pages that embed `JobPosting` schema should surface employer/title/pay in extracted text block.
 
 ## Next implementation steps
 

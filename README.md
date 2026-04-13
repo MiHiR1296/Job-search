@@ -158,7 +158,7 @@ Build guide:
 ### 9) Android app quick usage
 
 1. Install the latest debug APK from GitHub Actions artifacts (recommended) or a GitHub Release asset.
-2. Open app -> Onboarding tab.
+2. Open app -> **Onboarding runs once** (resume-first wizard, then salary/notice fields). Later launches start on **Job**.
    - Tap **Choose from Files (PDF/DOC/TXT)** to pick resume/documents from Android file picker (no path typing needed).
    - App auto-parses resume and pre-fills fields where possible (name/email/phone/skills/role hints).
    - Edit remaining details and save once.
@@ -167,7 +167,7 @@ Build guide:
    - API mode: enter your own API base/model/key (key is encrypted locally).
 4. Share a job link from LinkedIn/WhatsApp/browser to Career Ops Mobile.
 5. App auto-detects likely job links and starts one-tap pipeline.
-   - If in-app login is blocked/pop-up based, use **Open current page in browser** fallback and continue there.
+   - If in-app login is blocked/pop-up based, use **Open job in Custom Tab (Indeed / heavy logins)** or **Open current page in browser** fallback and continue there.
 6. Review output in Results tab:
    - fit score + recommendation,
    - generated cover letter,

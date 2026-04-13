@@ -1,7 +1,9 @@
 package com.careerops.mobile.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.careerops.mobile.security.ApiKeyCrypto
@@ -16,6 +18,10 @@ class ProfileStore(private val context: Context) {
 
     val profileFlow: Flow<CandidateProfile> = context.profileDataStore.data.map { prefs ->
         val decryptedApiKey = crypto.decrypt(prefs[keys.apiKeyEncrypted] ?: "")
+        val resumeUri = prefs[keys.resumeUri] ?: ""
+        val explicitOnboarding = prefs[keys.onboardingCompleted]
+        val migratedOnboarding = resumeUri.isNotBlank()
+        val onboardingCompleted = explicitOnboarding ?: migratedOnboarding
         CandidateProfile(
             fullName = prefs[keys.fullName] ?: "Your Name",
             email = prefs[keys.email] ?: "you@example.com",
@@ -26,7 +32,8 @@ class ProfileStore(private val context: Context) {
             portfolio = prefs[keys.portfolio] ?: "https://your-portfolio.example.com",
             currentTitle = prefs[keys.currentTitle] ?: "",
             targetRole = prefs[keys.targetRole] ?: "",
-            resumeUri = prefs[keys.resumeUri] ?: "",
+            resumeUri = resumeUri,
+            resumeTextSnapshot = prefs[keys.resumeTextSnapshot] ?: "",
             strengths = prefs[keys.strengths] ?: "",
             achievements = prefs[keys.achievements] ?: "",
             careerMemory = prefs[keys.careerMemory] ?: "",
@@ -37,6 +44,8 @@ class ProfileStore(private val context: Context) {
             minimumAcceptableLpa = prefs[keys.minimumAcceptableLpa] ?: "",
             requiresSponsorship = prefs[keys.requiresSponsorship] ?: "No",
             willingToRelocate = prefs[keys.willingToRelocate] ?: "Yes",
+            onboardingCompleted = onboardingCompleted,
+            onboardingVersion = prefs[keys.onboardingVersion] ?: 1,
             llmProviderMode = prefs[keys.llmProviderMode] ?: "local",
             localModelPath = prefs[keys.localModelPath] ?: "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
             apiBaseUrl = prefs[keys.apiBaseUrl] ?: "https://api.openai.com/v1",
@@ -57,6 +66,7 @@ class ProfileStore(private val context: Context) {
             prefs[keys.currentTitle] = profile.currentTitle
             prefs[keys.targetRole] = profile.targetRole
             prefs[keys.resumeUri] = profile.resumeUri
+            prefs[keys.resumeTextSnapshot] = profile.resumeTextSnapshot.take(12_000)
             prefs[keys.strengths] = profile.strengths
             prefs[keys.achievements] = profile.achievements
             prefs[keys.careerMemory] = profile.careerMemory
@@ -67,6 +77,8 @@ class ProfileStore(private val context: Context) {
             prefs[keys.minimumAcceptableLpa] = profile.minimumAcceptableLpa
             prefs[keys.requiresSponsorship] = profile.requiresSponsorship
             prefs[keys.willingToRelocate] = profile.willingToRelocate
+            prefs[keys.onboardingCompleted] = profile.onboardingCompleted
+            prefs[keys.onboardingVersion] = profile.onboardingVersion
             prefs[keys.llmProviderMode] = profile.llmProviderMode
             prefs[keys.localModelPath] = profile.localModelPath
             prefs[keys.apiBaseUrl] = profile.apiBaseUrl
@@ -87,6 +99,7 @@ class ProfileStore(private val context: Context) {
         val currentTitle = stringPreferencesKey("current_title")
         val targetRole = stringPreferencesKey("target_role")
         val resumeUri = stringPreferencesKey("resume_uri")
+        val resumeTextSnapshot = stringPreferencesKey("resume_text_snapshot")
         val strengths = stringPreferencesKey("strengths")
         val achievements = stringPreferencesKey("achievements")
         val careerMemory = stringPreferencesKey("career_memory")
@@ -97,6 +110,8 @@ class ProfileStore(private val context: Context) {
         val minimumAcceptableLpa = stringPreferencesKey("minimum_acceptable_lpa")
         val requiresSponsorship = stringPreferencesKey("requires_sponsorship")
         val willingToRelocate = stringPreferencesKey("willing_to_relocate")
+        val onboardingCompleted = booleanPreferencesKey("onboarding_completed")
+        val onboardingVersion = intPreferencesKey("onboarding_version")
         val llmProviderMode = stringPreferencesKey("llm_provider_mode")
         val localModelPath = stringPreferencesKey("local_model_path")
         val apiBaseUrl = stringPreferencesKey("api_base_url")

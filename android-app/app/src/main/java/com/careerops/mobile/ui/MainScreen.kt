@@ -53,11 +53,19 @@ private enum class MainTab { ONBOARD, AI_SETUP, JOB, WEBVIEW, RESULTS, MEMORY }
 fun MainScreen(
     viewModel: MainViewModel,
     onPickResumeDocument: () -> Unit,
-    onStartVoiceCapture: (String) -> Unit
+    onStartVoiceCapture: (String) -> Unit,
+    onOpenJobInCustomTab: (String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(MainTab.ONBOARD) }
+    var didApplyInitialTab by remember { mutableStateOf(false) }
+    LaunchedEffect(state.profile) {
+        if (!didApplyInitialTab) {
+            didApplyInitialTab = true
+            selectedTab = if (state.profile.onboardingCompleted) MainTab.JOB else MainTab.ONBOARD
+        }
+    }
     LaunchedEffect(state.isAutoGenerating, state.url) {
         if (state.isAutoGenerating && state.url.isNotBlank()) {
             selectedTab = MainTab.WEBVIEW
@@ -127,7 +135,8 @@ fun MainScreen(
                 MainTab.ONBOARD -> OnboardingTab(
                     profile = state.profile,
                     onSave = viewModel::saveProfile,
-                    onPickResumeDocument = onPickResumeDocument
+                    onPickResumeDocument = onPickResumeDocument,
+                    onFinished = { selectedTab = MainTab.JOB }
                 )
                 MainTab.AI_SETUP -> AiSetupTab(
                     state = state,
@@ -148,6 +157,7 @@ fun MainScreen(
                     onJd = viewModel::updateJdText,
                     onGenerate = viewModel::generatePack,
                     onAutoGenerate = viewModel::startAutoGenerateFromUrlOnly,
+                    onEditProfile = { selectedTab = MainTab.ONBOARD },
                     onStartBubble = {
                         val serviceIntent = Intent(context, BubbleOverlayService::class.java)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -168,16 +178,27 @@ fun MainScreen(
                             Text("Enter/share a job URL in Job Input first.")
                         }
                     } else {
+                        if (state.webViewLoadError.isNotBlank()) {
+                            StatusMessageBox(state.webViewLoadError)
+                        }
                         JobWebViewScreen(
                             url = state.url,
                             autoCaptureOnLoad = !state.manualCaptureMode,
                             onPageTextCaptured = { viewModel.updateExtractedPageText(it) },
                             onVisibleTextCaptured = { viewModel.refreshSuggestionsFromVisibleText(it) },
+                            onJsonLdCaptured = { viewModel.updateJsonLdFromPage(it) },
+                            onLoadError = { viewModel.reportWebViewLoadError(it) },
+                            onClearLoadError = { viewModel.clearWebViewLoadError() },
+                            onOpenCustomTab = { onOpenJobInCustomTab(state.url) },
                             onCaptureAndGenerate = { viewModel.requestGenerateAfterManualCapture() }
                         )
                     }
                 }
-                MainTab.RESULTS -> ResultsTab(state = state)
+                MainTab.RESULTS -> ResultsTab(
+                    state = state,
+                    onJobExtraChange = viewModel::updateJobExtraContext,
+                    onRegenerate = viewModel::generatePack
+                )
                 MainTab.MEMORY -> MemoryTab(
                     state = state,
                     onStartVoice = onStartVoiceCapture,
@@ -242,9 +263,29 @@ private fun AiSetupTab(
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "Use local mode for offline/private usage. Example: /sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+                "Stronger reasoning needs a larger instruct GGUF (more RAM). Tap a preset below or paste your own path.",
                 style = MaterialTheme.typography.bodySmall
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Quick local model presets", style = MaterialTheme.typography.titleSmall)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(
+                    onClick = { onLocalModelPathChange("/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf") },
+                    label = { Text("1.5B Q4 (fast)") },
+                    colors = AssistChipDefaults.assistChipColors()
+                )
+                AssistChip(
+                    onClick = { onLocalModelPathChange("/sdcard/Download/qwen2.5-7b-instruct-q4_k_m.gguf") },
+                    label = { Text("7B Q4 (capable)") },
+                    colors = AssistChipDefaults.assistChipColors()
+                )
+                AssistChip(
+                    onClick = { onLocalModelPathChange("/sdcard/Download/qwen2.5-8b-instruct-q4_k_m.gguf") },
+                    label = { Text("8B Q4") },
+                    colors = AssistChipDefaults.assistChipColors()
+                )
+            }
         } else {
             OutlinedTextField(
                 value = state.aiSetupApiBaseUrlDraft,
@@ -324,93 +365,251 @@ private fun AiSetupTab(
     }
 }
 
+private enum class OnboardStep { PickResume, MissingFields }
+
 @Composable
 private fun OnboardingTab(
     profile: CandidateProfile,
     onSave: (CandidateProfile) -> Unit,
-    onPickResumeDocument: () -> Unit
+    onPickResumeDocument: () -> Unit,
+    onFinished: () -> Unit
 ) {
     var draft by remember(profile) { mutableStateOf(profile) }
+    LaunchedEffect(profile) {
+        draft = profile
+    }
+    var step by remember(profile.onboardingCompleted) {
+        mutableStateOf(if (profile.onboardingCompleted) OnboardStep.MissingFields else OnboardStep.PickResume)
+    }
+    var showMore by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        Text("Candidate Onboarding", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            if (profile.onboardingCompleted) "Profile" else "Welcome",
+            style = MaterialTheme.typography.headlineSmall
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Fill once, update anytime. Stored locally on device.", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            if (profile.onboardingCompleted) {
+                "Update your details anytime. Job flow opens on the Job tab after first setup."
+            } else {
+                "Upload your resume once. We auto-detect what we can, then only ask for typical gaps (CTC targets, notice, etc.)."
+            },
+            style = MaterialTheme.typography.bodyMedium
+        )
         Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(draft.fullName, { draft = draft.copy(fullName = it) }, label = { Text("Full name") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.email, { draft = draft.copy(email = it) }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.phone, { draft = draft.copy(phone = it) }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.location, { draft = draft.copy(location = it) }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.currentTitle, { draft = draft.copy(currentTitle = it) }, label = { Text("Current title") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.targetRole, { draft = draft.copy(targetRole = it) }, label = { Text("Target role") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Resume / documents", style = MaterialTheme.typography.titleSmall)
-        Spacer(modifier = Modifier.height(4.dp))
-        Button(
-            onClick = onPickResumeDocument,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Choose from Files (PDF/DOC/TXT)")
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            if (profile.resumeUri.isBlank()) {
-                "No document selected yet."
-            } else {
-                "Selected: ${extractDisplayFileName(profile.resumeUri)}"
-            },
-            style = MaterialTheme.typography.bodySmall
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            "After choosing resume, app auto-detects details and pre-fills what it can. You can edit remaining fields.",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.yearsExperience, { draft = draft.copy(yearsExperience = it) }, label = { Text("Years experience") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.currentCtcLpa, { draft = draft.copy(currentCtcLpa = it) }, label = { Text("Current CTC (LPA)") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.expectedCtcLpa, { draft = draft.copy(expectedCtcLpa = it) }, label = { Text("Expected CTC (LPA)") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.minimumAcceptableLpa, { draft = draft.copy(minimumAcceptableLpa = it) }, label = { Text("Minimum acceptable CTC (LPA)") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.noticePeriodDays, { draft = draft.copy(noticePeriodDays = it) }, label = { Text("Notice period (days)") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.strengths, { draft = draft.copy(strengths = it) }, label = { Text("Top strengths (comma-separated)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(draft.achievements, { draft = draft.copy(achievements = it) }, label = { Text("Key achievements (comma-separated)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            draft.careerMemory,
-            { draft = draft.copy(careerMemory = it) },
-            label = { Text("Long-term career memory") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 5
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                onSave(
-                    draft.copy(
-                        // Keep the latest selected document URI even if local draft is stale.
-                        resumeUri = profile.resumeUri.ifBlank { draft.resumeUri }
-                    )
+        when (step) {
+            OnboardStep.PickResume -> {
+                Text("Step 1 — Resume", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = onPickResumeDocument, modifier = Modifier.fillMaxWidth()) {
+                    Text("Choose from Files (PDF/DOC/TXT)")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    if (profile.resumeUri.isBlank()) "No document selected yet."
+                    else "Selected: ${extractDisplayFileName(profile.resumeUri)}",
+                    style = MaterialTheme.typography.bodySmall
                 )
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Save profile locally")
+                if (profile.resumeUri.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Auto-detected (edit next step):", style = MaterialTheme.typography.titleSmall)
+                    Text("Name: ${draft.fullName}", style = MaterialTheme.typography.bodySmall)
+                    Text("Email: ${draft.email}", style = MaterialTheme.typography.bodySmall)
+                    Text("Phone: ${draft.phone}", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { step = OnboardStep.MissingFields },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = profile.resumeUri.isNotBlank()
+                    ) {
+                        Text("Continue")
+                    }
+                }
+            }
+            OnboardStep.MissingFields -> {
+                Text(
+                    if (profile.onboardingCompleted) "Details" else "Step 2 — Salary & logistics",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (!profile.onboardingCompleted) {
+                    TextButton(onClick = { step = OnboardStep.PickResume }) {
+                        Text("Back to resume")
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                OutlinedTextField(
+                    draft.currentCtcLpa,
+                    { draft = draft.copy(currentCtcLpa = it) },
+                    label = { Text("Current CTC (LPA, optional)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    draft.expectedCtcLpa,
+                    { draft = draft.copy(expectedCtcLpa = it) },
+                    label = { Text("Expected CTC (LPA)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    draft.minimumAcceptableLpa,
+                    { draft = draft.copy(minimumAcceptableLpa = it) },
+                    label = { Text("Minimum acceptable CTC (LPA)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    draft.noticePeriodDays,
+                    { draft = draft.copy(noticePeriodDays = it) },
+                    label = { Text("Notice period (days)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    draft.requiresSponsorship,
+                    { draft = draft.copy(requiresSponsorship = it) },
+                    label = { Text("Requires sponsorship (Yes/No)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    draft.willingToRelocate,
+                    { draft = draft.copy(willingToRelocate = it) },
+                    label = { Text("Willing to relocate (Yes/No)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    draft.location,
+                    { draft = draft.copy(location = it) },
+                    label = { Text("Location") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = { showMore = !showMore }) {
+                    Text(if (showMore) "Hide extra fields" else "Show extra fields (title, links, memory)")
+                }
+                if (showMore) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.fullName,
+                        { draft = draft.copy(fullName = it) },
+                        label = { Text("Full name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.email,
+                        { draft = draft.copy(email = it) },
+                        label = { Text("Email") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.phone,
+                        { draft = draft.copy(phone = it) },
+                        label = { Text("Phone") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.currentTitle,
+                        { draft = draft.copy(currentTitle = it) },
+                        label = { Text("Current title") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.targetRole,
+                        { draft = draft.copy(targetRole = it) },
+                        label = { Text("Target role") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.linkedin,
+                        { draft = draft.copy(linkedin = it) },
+                        label = { Text("LinkedIn") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.github,
+                        { draft = draft.copy(github = it) },
+                        label = { Text("GitHub") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.portfolio,
+                        { draft = draft.copy(portfolio = it) },
+                        label = { Text("Portfolio") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.yearsExperience,
+                        { draft = draft.copy(yearsExperience = it) },
+                        label = { Text("Years experience") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.strengths,
+                        { draft = draft.copy(strengths = it) },
+                        label = { Text("Strengths (comma-separated)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.achievements,
+                        { draft = draft.copy(achievements = it) },
+                        label = { Text("Achievements (comma-separated)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        draft.careerMemory,
+                        { draft = draft.copy(careerMemory = it) },
+                        label = { Text("Long-term career memory") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 4
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                if (profile.onboardingCompleted) {
+                    TextButton(onClick = { step = OnboardStep.PickResume }) {
+                        Text("Replace resume document")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val merged = draft.copy(
+                            resumeUri = profile.resumeUri.ifBlank { draft.resumeUri },
+                            resumeTextSnapshot = profile.resumeTextSnapshot.ifBlank { draft.resumeTextSnapshot },
+                            onboardingCompleted = true
+                        )
+                        onSave(merged)
+                        onFinished()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = profile.onboardingCompleted || profile.resumeUri.isNotBlank()
+                ) {
+                    Text(if (profile.onboardingCompleted) "Save profile" else "Save and finish onboarding")
+                }
+            }
         }
     }
 }
@@ -446,6 +645,7 @@ private fun JobInputTab(
     onJd: (String) -> Unit,
     onGenerate: () -> Unit,
     onAutoGenerate: () -> Unit,
+    onEditProfile: () -> Unit,
     onStartBubble: () -> Unit
 ) {
     Column(
@@ -460,7 +660,15 @@ private fun JobInputTab(
             "Paste/share a URL and use One-tap URL flow. Company, role, and JD are auto-extracted from the in-app page.",
             style = MaterialTheme.typography.bodyMedium
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        TextButton(onClick = onEditProfile) {
+            Text("Edit profile / onboarding")
+        }
+        if (state.webViewLoadError.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            StatusMessageBox(state.webViewLoadError)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             state.company,
             onCompany,
@@ -551,7 +759,11 @@ private fun JobInputTab(
 }
 
 @Composable
-private fun ResultsTab(state: MainUiState) {
+private fun ResultsTab(
+    state: MainUiState,
+    onJobExtraChange: (String) -> Unit,
+    onRegenerate: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -560,6 +772,27 @@ private fun ResultsTab(state: MainUiState) {
     ) {
         Text("Generation Output", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Anything extra for this job only? (highlights, tech, team fit — used in cover letter and scoring.)",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        OutlinedTextField(
+            value = state.jobExtraContext,
+            onValueChange = onJobExtraChange,
+            label = { Text("Notes for this job") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = onRegenerate,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.isGenerating && state.url.isNotBlank()
+        ) {
+            Text("Regenerate with these notes")
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         Text("Fit Score: ${String.format("%.2f", state.fitScore)} / 5", style = MaterialTheme.typography.titleMedium)
         Text(
             "Recommendation: ${state.recommendation}",

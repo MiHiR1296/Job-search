@@ -6,12 +6,14 @@ import com.careerops.mobile.data.ApplicationPack
 import com.careerops.mobile.data.CandidateProfile
 import com.careerops.mobile.data.FormSuggestion
 import com.careerops.mobile.data.JobInput
+import com.careerops.mobile.data.StructuredJobDraft
 import com.careerops.mobile.data.PackRepository
 import com.careerops.mobile.data.ProfileStore
 import com.careerops.mobile.llm.HybridLlmEngine
 import com.careerops.mobile.llm.LocalLlmEngine
 import com.careerops.mobile.llm.StubLocalLlmEngine
 import com.careerops.mobile.scoring.JobScoringEngine
+import com.careerops.mobile.scoring.SalaryNormalizer
 import com.careerops.mobile.web.FormSuggestionEngine
 import com.careerops.mobile.web.JobPageExtractor
 import kotlinx.coroutines.Dispatchers
@@ -59,7 +61,14 @@ data class MainUiState(
     val aiSetupLocalModelPathDraft: String = "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
     val aiSetupApiBaseUrlDraft: String = "https://api.openai.com/v1",
     val aiSetupApiModelDraft: String = "gpt-4o-mini",
-    val aiSetupApiKeyDraft: String = ""
+    val aiSetupApiKeyDraft: String = "",
+    /** Raw concatenated JSON-LD script bodies from the in-app WebView (see JobWebViewScreen). */
+    val lastJsonLdRaw: String = "",
+    /** Optional per-job notes the user wants emphasized in prompts and scoring. */
+    val jobExtraContext: String = "",
+    val webViewLoadError: String = "",
+    /** Derived whenever state is committed (onboarding / share / normal). */
+    val appFlowPhase: AppFlowPhase = AppFlowPhase.FirstRun
 )
 
 class MainViewModel(
@@ -82,9 +91,10 @@ class MainViewModel(
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
+        push(_uiState.value)
         viewModelScope.launch {
             profileStore.profileFlow.collect { profile ->
-                _uiState.value = _uiState.value.copy(profile = profile)
+                push(_uiState.value.copy(profile = profile))
                 syncAiDraftsFromProfile(profile)
             }
         }
@@ -95,60 +105,91 @@ class MainViewModel(
         if (text.isBlank()) return
         val maybeUrl = extractFirstUrl(text)
         val isLikelyJob = maybeUrl.isNotBlank() && JobPageExtractor.isLikelyJobUrl(maybeUrl)
-        _uiState.value = _uiState.value.copy(
-            url = maybeUrl.ifBlank { _uiState.value.url },
-            extractedPageText = if (maybeUrl.isNotBlank()) "" else _uiState.value.extractedPageText,
-            jdText = if (maybeUrl.isBlank()) text else _uiState.value.jdText,
-            detectedCompany = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedCompany,
-            detectedRole = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedRole,
-            detectedSalaryHint = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedSalaryHint,
-            isJobLinkDetected = isLikelyJob,
-            shouldAutoStartFromShare = isLikelyJob,
-            statusMessage = if (isLikelyJob) {
-                "Job link detected from share. Starting one-tap flow."
-            } else {
-                "Shared content imported."
-            }
+        push(
+            _uiState.value.copy(
+                url = maybeUrl.ifBlank { _uiState.value.url },
+                extractedPageText = if (maybeUrl.isNotBlank()) "" else _uiState.value.extractedPageText,
+                jdText = if (maybeUrl.isBlank()) text else _uiState.value.jdText,
+                detectedCompany = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedCompany,
+                detectedRole = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedRole,
+                detectedSalaryHint = if (maybeUrl.isNotBlank()) "" else _uiState.value.detectedSalaryHint,
+                isJobLinkDetected = isLikelyJob,
+                shouldAutoStartFromShare = isLikelyJob,
+                statusMessage = if (isLikelyJob) {
+                    "Job link detected from share. Starting one-tap flow."
+                } else {
+                    "Shared content imported."
+                }
+            )
         )
     }
 
-    fun updateCompany(value: String) { _uiState.value = _uiState.value.copy(company = value) }
-    fun updateRole(value: String) { _uiState.value = _uiState.value.copy(role = value) }
+    fun updateCompany(value: String) { push(_uiState.value.copy(company = value)) }
+    fun updateRole(value: String) { push(_uiState.value.copy(role = value)) }
     fun updateUrl(value: String) {
         val current = _uiState.value
-        _uiState.value = current.copy(
-            url = value,
-            extractedPageText = if (current.url != value) "" else current.extractedPageText,
-            detectedCompany = if (current.url != value) "" else current.detectedCompany,
-            detectedRole = if (current.url != value) "" else current.detectedRole,
-            detectedSalaryHint = if (current.url != value) "" else current.detectedSalaryHint
+        push(
+            current.copy(
+                url = value,
+                extractedPageText = if (current.url != value) "" else current.extractedPageText,
+                detectedCompany = if (current.url != value) "" else current.detectedCompany,
+                detectedRole = if (current.url != value) "" else current.detectedRole,
+                detectedSalaryHint = if (current.url != value) "" else current.detectedSalaryHint,
+                lastJsonLdRaw = if (current.url != value) "" else current.lastJsonLdRaw,
+                webViewLoadError = if (current.url != value) "" else current.webViewLoadError
+            )
         )
     }
-    fun updateJdText(value: String) { _uiState.value = _uiState.value.copy(jdText = value) }
+    fun updateJdText(value: String) { push(_uiState.value.copy(jdText = value)) }
+
+    fun updateJsonLdFromPage(jsonLd: String) {
+        push(_uiState.value.copy(lastJsonLdRaw = jsonLd))
+    }
+
+    fun updateJobExtraContext(value: String) {
+        push(_uiState.value.copy(jobExtraContext = value))
+    }
+
+    fun reportWebViewLoadError(message: String) {
+        push(_uiState.value.copy(webViewLoadError = message))
+    }
+
+    fun clearWebViewLoadError() {
+        push(_uiState.value.copy(webViewLoadError = ""))
+    }
 
     fun updateExtractedPageText(value: String) {
+        val state = _uiState.value
         val cleaned = JobPageExtractor.cleanExtractedText(value)
-        val detectedCompany = JobPageExtractor.detectCompany(cleaned)
-        val detectedRole = JobPageExtractor.detectRole(cleaned)
-        val detectedSalary = JobPageExtractor.detectSalary(cleaned)
-        val next = _uiState.value.copy(
-            extractedPageText = cleaned,
-            company = if (_uiState.value.company.isBlank()) detectedCompany else _uiState.value.company,
-            role = if (_uiState.value.role.isBlank()) detectedRole else _uiState.value.role,
+        val merged = if (state.lastJsonLdRaw.isNotBlank()) {
+            JobPageExtractor.mergeJsonLdIntoPageText(cleaned, state.lastJsonLdRaw)
+        } else {
+            cleaned
+        }
+        val detectedCompany = JobPageExtractor.detectCompany(merged)
+        val detectedRole = JobPageExtractor.detectRole(merged)
+        val detectedSalary = JobPageExtractor.detectSalaryExpanded(merged)
+        val next = state.copy(
+            extractedPageText = merged,
+            webViewLoadError = "",
+            company = if (state.company.isBlank()) detectedCompany else state.company,
+            role = if (state.role.isBlank()) detectedRole else state.role,
             detectedCompany = detectedCompany,
             detectedRole = detectedRole,
             detectedSalaryHint = detectedSalary
         )
-        _uiState.value = next
+        push(next)
         if (next.pendingAutoGenerateAfterExtraction || next.pendingGenerateAfterManualCapture) {
-            _uiState.value = next.copy(
-                pendingAutoGenerateAfterExtraction = false,
-                pendingGenerateAfterManualCapture = false,
-                statusMessage = if (cleaned.isBlank()) {
-                    "Page had little readable text. Generating with available input."
-                } else {
-                    next.statusMessage
-                }
+            push(
+                next.copy(
+                    pendingAutoGenerateAfterExtraction = false,
+                    pendingGenerateAfterManualCapture = false,
+                    statusMessage = if (cleaned.isBlank()) {
+                        "Page had little readable text. Generating with available input."
+                    } else {
+                        next.statusMessage
+                    }
+                )
             )
             generatePack()
         }
@@ -159,31 +200,35 @@ class MainViewModel(
             visibleText = visibleText,
             profile = _uiState.value.profile
         )
-        _uiState.value = _uiState.value.copy(formSuggestions = suggestions)
+        push(_uiState.value.copy(formSuggestions = suggestions))
     }
 
     fun requestGenerateAfterManualCapture() {
         val state = _uiState.value
         if (state.url.isBlank()) {
-            _uiState.value = state.copy(statusMessage = "Job URL is required.")
+            push(state.copy(statusMessage = "Job URL is required."))
             return
         }
-        _uiState.value = state.copy(
-            pendingGenerateAfterManualCapture = true,
-            statusMessage = "Waiting for manual capture, then generating."
+        push(
+            state.copy(
+                pendingGenerateAfterManualCapture = true,
+                statusMessage = "Waiting for manual capture, then generating."
+            )
         )
     }
 
     fun setManualCaptureMode(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(manualCaptureMode = enabled)
+        push(_uiState.value.copy(manualCaptureMode = enabled))
     }
 
     fun saveProfile(updated: CandidateProfile) {
         viewModelScope.launch {
             profileStore.saveProfile(updated)
-            _uiState.value = _uiState.value.copy(
-                profile = updated,
-                statusMessage = "Profile saved locally."
+            push(
+                _uiState.value.copy(
+                    profile = updated,
+                    statusMessage = "Profile saved locally."
+                )
             )
         }
     }
@@ -191,35 +236,37 @@ class MainViewModel(
     fun applyImportedResumeProfile(updated: CandidateProfile, autoFilled: Boolean) {
         viewModelScope.launch {
             profileStore.saveProfile(updated)
-            _uiState.value = _uiState.value.copy(
-                profile = updated,
-                statusMessage = if (autoFilled) {
-                    "Resume imported. Profile fields were auto-filled where possible."
-                } else {
-                    "Resume imported. You can fill remaining fields manually."
-                }
+            push(
+                _uiState.value.copy(
+                    profile = updated,
+                    statusMessage = if (autoFilled) {
+                        "Resume imported. Profile fields were auto-filled where possible."
+                    } else {
+                        "Resume imported. You can fill remaining fields manually."
+                    }
+                )
             )
         }
     }
 
     fun updateAiSetupModeDraft(value: String) {
-        _uiState.value = _uiState.value.copy(aiSetupModeDraft = value)
+        push(_uiState.value.copy(aiSetupModeDraft = value))
     }
 
     fun updateAiSetupLocalModelPathDraft(value: String) {
-        _uiState.value = _uiState.value.copy(aiSetupLocalModelPathDraft = value)
+        push(_uiState.value.copy(aiSetupLocalModelPathDraft = value))
     }
 
     fun updateAiSetupApiBaseUrlDraft(value: String) {
-        _uiState.value = _uiState.value.copy(aiSetupApiBaseUrlDraft = value)
+        push(_uiState.value.copy(aiSetupApiBaseUrlDraft = value))
     }
 
     fun updateAiSetupApiModelDraft(value: String) {
-        _uiState.value = _uiState.value.copy(aiSetupApiModelDraft = value)
+        push(_uiState.value.copy(aiSetupApiModelDraft = value))
     }
 
     fun updateAiSetupApiKeyDraft(value: String) {
-        _uiState.value = _uiState.value.copy(aiSetupApiKeyDraft = value)
+        push(_uiState.value.copy(aiSetupApiKeyDraft = value))
     }
 
     fun saveAiSetupDraftsToProfile() {
@@ -235,16 +282,16 @@ class MainViewModel(
     }
 
     fun onSharedJobAutoStartHandled() {
-        _uiState.value = _uiState.value.copy(shouldAutoStartFromShare = false)
+        push(_uiState.value.copy(shouldAutoStartFromShare = false))
     }
 
     fun beginVoiceCapture(field: String) {
-        _uiState.value = _uiState.value.copy(dictationFocusField = field)
+        push(_uiState.value.copy(dictationFocusField = field))
     }
 
     fun consumeVoiceField(): String {
         val field = _uiState.value.dictationFocusField
-        _uiState.value = _uiState.value.copy(dictationFocusField = "")
+        push(_uiState.value.copy(dictationFocusField = ""))
         return field
     }
 
@@ -260,57 +307,63 @@ class MainViewModel(
             "careerNarrative" -> {
                 val current = _uiState.value.voiceDraftNarrative
                 val merged = listOf(current, text).filter { it.isNotBlank() }.joinToString("\n\n")
-                _uiState.value = _uiState.value.copy(voiceDraftNarrative = merged)
+                push(_uiState.value.copy(voiceDraftNarrative = merged))
             }
         }
     }
 
     fun onVoiceCaptureUnavailable(message: String = "Voice capture unavailable on this device. Please type your answer.") {
-        _uiState.value = _uiState.value.copy(
-            dictationFocusField = "",
-            statusMessage = message
+        push(
+            _uiState.value.copy(
+                dictationFocusField = "",
+                statusMessage = message
+            )
         )
     }
 
     fun onVoicePermissionDenied() {
-        _uiState.value = _uiState.value.copy(
-            dictationFocusField = "",
-            statusMessage = "Microphone permission denied. Enable it from app settings to use voice memory."
+        push(
+            _uiState.value.copy(
+                dictationFocusField = "",
+                statusMessage = "Microphone permission denied. Enable it from app settings to use voice memory."
+            )
         )
     }
 
     fun clearNarrativeDraft() {
-        _uiState.value = _uiState.value.copy(voiceDraftNarrative = "")
+        push(_uiState.value.copy(voiceDraftNarrative = ""))
     }
 
     fun nextKnowledgePrompt() {
         knowledgePromptIndex = (knowledgePromptIndex + 1) % knowledgePrompts.size
-        _uiState.value = _uiState.value.copy(knowledgePrompt = knowledgePrompts[knowledgePromptIndex])
+        push(_uiState.value.copy(knowledgePrompt = knowledgePrompts[knowledgePromptIndex]))
     }
 
     fun updateNarrativeDraft(value: String) {
-        _uiState.value = _uiState.value.copy(voiceDraftNarrative = value)
+        push(_uiState.value.copy(voiceDraftNarrative = value))
     }
 
     fun summarizeNarrativeIntoMemory() {
         val state = _uiState.value
         val narrative = state.voiceDraftNarrative.trim()
         if (narrative.isBlank()) {
-            _uiState.value = state.copy(statusMessage = "Please dictate your story first.")
+            push(state.copy(statusMessage = "Please dictate your story first."))
             return
         }
         viewModelScope.launch {
-            _uiState.value = state.copy(isSummarizingMemory = true, statusMessage = "Summarizing your story...")
+            push(state.copy(isSummarizingMemory = true, statusMessage = "Summarizing your story..."))
             val summarized = withContext(Dispatchers.IO) {
                 llmEngine.summarizeCareerMemory(state.profile.careerMemory, narrative, state.profile)
             }
             val updatedProfile = state.profile.copy(careerMemory = summarized)
             profileStore.saveProfile(updatedProfile)
-            _uiState.value = _uiState.value.copy(
-                profile = updatedProfile,
-                isSummarizingMemory = false,
-                voiceDraftNarrative = "",
-                statusMessage = "Career memory updated from your voice notes."
+            push(
+                _uiState.value.copy(
+                    profile = updatedProfile,
+                    isSummarizingMemory = false,
+                    voiceDraftNarrative = "",
+                    statusMessage = "Career memory updated from your voice notes."
+                )
             )
         }
     }
@@ -318,49 +371,55 @@ class MainViewModel(
     fun startAutoGenerateFromUrlOnly() {
         val state = _uiState.value
         if (state.url.isBlank()) {
-            _uiState.value = state.copy(statusMessage = "Job URL is required.")
+            push(state.copy(statusMessage = "Job URL is required."))
             return
         }
         if (state.manualCaptureMode) {
-            _uiState.value = state.copy(
+            push(
+                state.copy(
+                    isAutoGenerating = true,
+                    pendingAutoGenerateAfterExtraction = false,
+                    pendingGenerateAfterManualCapture = false,
+                    autoFlowRequestedAtMs = System.currentTimeMillis(),
+                    extractedPageText = "",
+                    detectedCompany = "",
+                    detectedRole = "",
+                    detectedSalaryHint = "",
+                    shouldAutoStartFromShare = false,
+                    statusMessage = "Manual capture mode is ON. Open In-App Page and press Capture + Generate."
+                )
+            )
+            return
+        }
+        push(
+            state.copy(
                 isAutoGenerating = true,
-                pendingAutoGenerateAfterExtraction = false,
-                pendingGenerateAfterManualCapture = false,
+                pendingAutoGenerateAfterExtraction = true,
                 autoFlowRequestedAtMs = System.currentTimeMillis(),
                 extractedPageText = "",
                 detectedCompany = "",
                 detectedRole = "",
                 detectedSalaryHint = "",
                 shouldAutoStartFromShare = false,
-                statusMessage = "Manual capture mode is ON. Open In-App Page and press Capture + Generate."
+                statusMessage = "Opening page and extracting JD. Generation will start automatically."
             )
-            return
-        }
-        _uiState.value = state.copy(
-            isAutoGenerating = true,
-            pendingAutoGenerateAfterExtraction = true,
-            autoFlowRequestedAtMs = System.currentTimeMillis(),
-            extractedPageText = "",
-            detectedCompany = "",
-            detectedRole = "",
-            detectedSalaryHint = "",
-            shouldAutoStartFromShare = false,
-            statusMessage = "Opening page and extracting JD. Generation will start automatically."
         )
     }
 
     fun startAutoFlowFromShare() {
         val state = _uiState.value
         if (state.manualCaptureMode) {
-            _uiState.value = state.copy(
-                shouldAutoStartFromShare = false,
-                isAutoGenerating = true,
-                autoFlowRequestedAtMs = System.currentTimeMillis(),
-                extractedPageText = "",
-                detectedCompany = "",
-                detectedRole = "",
-                detectedSalaryHint = "",
-                statusMessage = "Job link detected. Manual capture mode is ON. Open In-App Page and tap Capture + Generate."
+            push(
+                state.copy(
+                    shouldAutoStartFromShare = false,
+                    isAutoGenerating = true,
+                    autoFlowRequestedAtMs = System.currentTimeMillis(),
+                    extractedPageText = "",
+                    detectedCompany = "",
+                    detectedRole = "",
+                    detectedSalaryHint = "",
+                    statusMessage = "Job link detected. Manual capture mode is ON. Open In-App Page and tap Capture + Generate."
+                )
             )
             return
         }
@@ -370,12 +429,12 @@ class MainViewModel(
     fun generatePack() {
         val state = _uiState.value
         if (state.url.isBlank()) {
-            _uiState.value = state.copy(statusMessage = "Job URL is required.")
+            push(state.copy(statusMessage = "Job URL is required."))
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = state.copy(isGenerating = true, statusMessage = "Generating pack...")
+            push(state.copy(isGenerating = true, statusMessage = "Generating pack..."))
 
             val effectiveJd = when {
                 state.extractedPageText.isNotBlank() -> state.extractedPageText
@@ -383,16 +442,41 @@ class MainViewModel(
                 else -> ""
             }
 
-            val detectedCompany = if (state.company.isBlank()) JobPageExtractor.detectCompany(effectiveJd) else state.company.trim()
-            val detectedRole = if (state.role.isBlank()) JobPageExtractor.detectRole(effectiveJd) else state.role.trim()
-            val detectedSalary = JobPageExtractor.detectSalary(effectiveJd)
+            val structuredLlm: StructuredJobDraft? = withContext(Dispatchers.IO) {
+                if (effectiveJd.isBlank()) null
+                else llmEngine.extractStructuredJobFromJd(effectiveJd, state.profile)
+            }
+
+            var detectedCompany = if (state.company.isBlank()) JobPageExtractor.detectCompany(effectiveJd) else state.company.trim()
+            var detectedRole = if (state.role.isBlank()) JobPageExtractor.detectRole(effectiveJd) else state.role.trim()
+            if (detectedCompany.isBlank()) detectedCompany = structuredLlm?.company?.trim().orEmpty()
+            if (detectedRole.isBlank()) detectedRole = structuredLlm?.role?.trim().orEmpty()
+
+            var detectedSalary = JobPageExtractor.detectSalaryExpanded(effectiveJd)
+            if (detectedSalary.isBlank()) detectedSalary = structuredLlm?.salaryRaw?.trim().orEmpty()
+
+            val salaryBlob = listOf(detectedSalary, structuredLlm?.salaryRaw.orEmpty())
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .joinToString(" | ")
+            val lpaApprox = SalaryNormalizer.approximateAnnualLpa(
+                salaryText = salaryBlob,
+                payPeriodHint = structuredLlm?.payPeriodHint ?: "unknown",
+                extraContext = effectiveJd.take(4000)
+            )
+
+            val resumeSummary = state.profile.resumeTextSnapshot.ifBlank { state.profile.strengths }.take(6000)
 
             val jobInput = JobInput(
                 company = detectedCompany.ifBlank { "Unknown Company" },
                 role = detectedRole.ifBlank { "Unknown Role" },
                 url = state.url.trim(),
                 jdText = effectiveJd,
-                salaryHint = detectedSalary
+                salaryHint = detectedSalary,
+                salaryAnnualLpaApprox = lpaApprox,
+                jobSpecificNotes = state.jobExtraContext.trim(),
+                resumeSummaryForPrompt = resumeSummary
             )
 
             val insight = scoringEngine.score(jobInput, state.profile)
@@ -414,22 +498,24 @@ class MainViewModel(
                 writeGeneratedOutputs(pack.folderName, jobInput, coverLetter, resumeHighlights)
             }
 
-            _uiState.value = _uiState.value.copy(
-                isGenerating = false,
-                isAutoGenerating = false,
-                pendingAutoGenerateAfterExtraction = false,
-                company = insight.detectedCompany.ifBlank { jobInput.company },
-                role = insight.detectedRole.ifBlank { jobInput.role },
-                latestPackFolder = pack.folderName,
-                detectedCompany = insight.detectedCompany,
-                detectedRole = insight.detectedRole,
-                detectedSalaryHint = insight.detectedSalaryText.ifBlank { detectedSalary },
-                fitScore = insight.score,
-                recommendation = if (applyDecision == "Strong Apply" && insight.recommendation == "Apply") "Strong Apply" else insight.recommendation,
-                recommendationReasons = insight.reasons,
-                generatedCoverLetter = coverLetter,
-                generatedResumeHighlights = resumeHighlights,
-                statusMessage = "Pack generated at ${pack.folderPath}"
+            push(
+                _uiState.value.copy(
+                    isGenerating = false,
+                    isAutoGenerating = false,
+                    pendingAutoGenerateAfterExtraction = false,
+                    company = insight.detectedCompany.ifBlank { jobInput.company },
+                    role = insight.detectedRole.ifBlank { jobInput.role },
+                    latestPackFolder = pack.folderName,
+                    detectedCompany = insight.detectedCompany,
+                    detectedRole = insight.detectedRole,
+                    detectedSalaryHint = insight.detectedSalaryText.ifBlank { detectedSalary },
+                    fitScore = insight.score,
+                    recommendation = if (applyDecision == "Strong Apply" && insight.recommendation == "Apply") "Strong Apply" else insight.recommendation,
+                    recommendationReasons = insight.reasons,
+                    generatedCoverLetter = coverLetter,
+                    generatedResumeHighlights = resumeHighlights,
+                    statusMessage = "Pack generated at ${pack.folderPath}"
+                )
             )
         }
     }
@@ -437,7 +523,7 @@ class MainViewModel(
     fun testApiConnection() {
         val state = _uiState.value
         viewModelScope.launch {
-            _uiState.value = state.copy(isTestingApiConnection = true, apiTestStatus = "")
+            push(state.copy(isTestingApiConnection = true, apiTestStatus = ""))
             val profile = state.profile.copy(
                 llmProviderMode = state.aiSetupModeDraft,
                 localModelPath = state.aiSetupLocalModelPathDraft,
@@ -462,7 +548,10 @@ class MainViewModel(
                             company = "API Connectivity Check",
                             role = "Test",
                             url = "https://example.com",
-                            jdText = "Test prompt for API connectivity."
+                            jdText = "Test prompt for API connectivity.",
+                            salaryHint = "",
+                            jobSpecificNotes = "",
+                            resumeSummaryForPrompt = ""
                         )
                         val response = llmEngine.suggestApplyDecision(probe, profile)
                         if (response.isBlank()) {
@@ -475,10 +564,12 @@ class MainViewModel(
                     "API test failed: ${err.message ?: "Unknown error"}"
                 }
             }
-            _uiState.value = _uiState.value.copy(
-                isTestingApiConnection = false,
-                apiTestStatus = result,
-                statusMessage = result
+            push(
+                _uiState.value.copy(
+                    isTestingApiConnection = false,
+                    apiTestStatus = result,
+                    statusMessage = result
+                )
             )
         }
     }
@@ -508,13 +599,26 @@ class MainViewModel(
     }
 
     private fun syncAiDraftsFromProfile(profile: CandidateProfile) {
-        _uiState.value = _uiState.value.copy(
-            aiSetupModeDraft = profile.llmProviderMode,
-            aiSetupLocalModelPathDraft = profile.localModelPath,
-            aiSetupApiBaseUrlDraft = profile.apiBaseUrl,
-            aiSetupApiModelDraft = profile.apiModel,
-            aiSetupApiKeyDraft = profile.apiKey
+        push(
+            _uiState.value.copy(
+                aiSetupModeDraft = profile.llmProviderMode,
+                aiSetupLocalModelPathDraft = profile.localModelPath,
+                aiSetupApiBaseUrlDraft = profile.apiBaseUrl,
+                aiSetupApiModelDraft = profile.apiModel,
+                aiSetupApiKeyDraft = profile.apiKey
+            )
         )
+    }
+
+    private fun deriveAppFlow(state: MainUiState): AppFlowPhase = when {
+        !state.profile.onboardingCompleted -> AppFlowPhase.FirstRun
+        state.shouldAutoStartFromShare || (state.isAutoGenerating && state.url.isNotBlank()) ->
+            AppFlowPhase.JobFromShare
+        else -> AppFlowPhase.Ready
+    }
+
+    private fun push(next: MainUiState) {
+        _uiState.value = next.copy(appFlowPhase = deriveAppFlow(next))
     }
 }
 

@@ -1,10 +1,12 @@
 package com.careerops.mobile.ui
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.content.Intent
 import android.net.Uri
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
@@ -25,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,10 +37,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private class PageCaptureBridge(
     private val onPageTextCaptured: (String) -> Unit,
-    private val onVisibleTextCaptured: (String) -> Unit
+    private val onVisibleTextCaptured: (String) -> Unit,
+    private val onJsonLdCaptured: (String) -> Unit
 ) {
     @JavascriptInterface
     fun postPageText(text: String) {
@@ -48,6 +57,11 @@ private class PageCaptureBridge(
     fun postVisibleText(text: String) {
         onVisibleTextCaptured(text)
     }
+
+    @JavascriptInterface
+    fun postJsonLdPayload(text: String) {
+        onJsonLdCaptured(text)
+    }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -57,23 +71,37 @@ fun JobWebViewScreen(
     autoCaptureOnLoad: Boolean = true,
     onPageTextCaptured: (String) -> Unit,
     onVisibleTextCaptured: (String) -> Unit,
+    onJsonLdCaptured: (String) -> Unit = {},
+    onLoadError: (String) -> Unit = {},
+    onClearLoadError: () -> Unit = {},
+    onOpenCustomTab: () -> Unit = {},
     onCaptureAndGenerate: (() -> Unit)? = null
 ) {
     val isLoading = remember { mutableStateOf(true) }
-    val bridge = remember(onPageTextCaptured, onVisibleTextCaptured) {
+    val bridge = remember(onPageTextCaptured, onVisibleTextCaptured, onJsonLdCaptured) {
         PageCaptureBridge(
             onPageTextCaptured = onPageTextCaptured,
-            onVisibleTextCaptured = onVisibleTextCaptured
+            onVisibleTextCaptured = onVisibleTextCaptured,
+            onJsonLdCaptured = onJsonLdCaptured
         )
     }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    val timeoutScope = remember { CoroutineScope(Dispatchers.Main) }
+    var timeoutJob by remember { mutableStateOf<Job?>(null) }
 
     fun requestCapture() {
         webViewRef?.evaluateJavascript(
             """
             (function() {
               var fullText = (document.body && document.body.innerText) ? document.body.innerText : "";
-              var visibleText = fullText.slice(0, 4000);
+              var visibleText = fullText.slice(0, 12000);
+              var jsonParts = [];
+              var scripts = document.querySelectorAll('script[type="application/ld+json"]');
+              for (var i = 0; i < scripts.length; i++) {
+                var t = (scripts[i].textContent || "").trim();
+                if (t) jsonParts.push(t);
+              }
+              window.CareerOpsBridge.postJsonLdPayload(jsonParts.join(String.fromCharCode(10) + "---JSONLD---" + String.fromCharCode(10)));
               window.CareerOpsBridge.postPageText(fullText || "");
               window.CareerOpsBridge.postVisibleText(visibleText || "");
             })();
@@ -111,21 +139,27 @@ fun JobWebViewScreen(
                         Text("Refresh suggestions")
                     }
                 }
-                TextButton(
-                    onClick = {
-                        val target = webViewRef?.url ?: url
-                        if (target.isNotBlank()) {
-                            runCatching {
-                                val context = webViewRef?.context ?: return@runCatching
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                    TextButton(
+                        onClick = {
+                            val target = webViewRef?.url ?: url
+                            if (target.isNotBlank()) {
+                                runCatching {
+                                    val context = webViewRef?.context ?: return@runCatching
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                                }
                             }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Open current page in browser (fallback for difficult logins)")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open current page in browser (fallback for difficult logins)")
+                    }
+                    TextButton(
+                        onClick = { onOpenCustomTab() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open job in Custom Tab (Indeed / heavy logins)")
+                    }
                 }
-            }
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -202,9 +236,37 @@ fun JobWebViewScreen(
                                 }
                             }
 
+                            override fun onPageStarted(view: WebView?, pageUrl: String?, favicon: Bitmap?) {
+                                super.onPageStarted(view, pageUrl, favicon)
+                                isLoading.value = true
+                                onClearLoadError()
+                                timeoutJob?.cancel()
+                                timeoutJob = timeoutScope.launch {
+                                    delay(55_000)
+                                    if (isLoading.value) {
+                                        onLoadError("Page load is taking very long. Try Custom Tab if the screen stays blank.")
+                                    }
+                                }
+                            }
+
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                error: WebResourceError?
+                            ) {
+                                super.onReceivedError(view, request, error)
+                                if (request?.isForMainFrame == true) {
+                                    val msg = "${error?.errorCode}: ${error?.description ?: "unknown error"}"
+                                    onLoadError(msg)
+                                    isLoading.value = false
+                                }
+                            }
+
                             override fun onPageFinished(view: WebView?, pageUrl: String?) {
                                 super.onPageFinished(view, pageUrl)
                                 isLoading.value = false
+                                timeoutJob?.cancel()
+                                timeoutJob = null
                                 if (autoCaptureOnLoad) {
                                     requestCapture()
                                 }
@@ -230,5 +292,11 @@ fun JobWebViewScreen(
 
     LaunchedEffect(url) {
         isLoading.value = true
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            timeoutJob?.cancel()
+        }
     }
 }

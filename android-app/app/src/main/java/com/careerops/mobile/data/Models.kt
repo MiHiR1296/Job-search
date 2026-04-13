@@ -11,6 +11,8 @@ data class CandidateProfile(
     val currentTitle: String = "",
     val targetRole: String = "",
     val resumeUri: String = "",
+    /** Truncated resume text for LLM/scoring context (filled after resume import). */
+    val resumeTextSnapshot: String = "",
     val strengths: String = "",
     val achievements: String = "",
     val careerMemory: String = "",
@@ -21,6 +23,8 @@ data class CandidateProfile(
     val minimumAcceptableLpa: String = "",
     val requiresSponsorship: String = "No",
     val willingToRelocate: String = "Yes",
+    val onboardingCompleted: Boolean = false,
+    val onboardingVersion: Int = 1,
     val llmProviderMode: String = "local",
     val localModelPath: String = "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
     val apiBaseUrl: String = "https://api.openai.com/v1",
@@ -28,12 +32,32 @@ data class CandidateProfile(
     val apiKey: String = ""
 )
 
+/** Parsed job fields from JSON-LD and/or LLM (best-effort). */
+data class StructuredJobDraft(
+    val company: String = "",
+    val role: String = "",
+    val location: String = "",
+    val salaryRaw: String = "",
+    /** monthly, yearly, lpa, unknown */
+    val payPeriodHint: String = "unknown",
+    val responsibilitiesSnippet: String = ""
+)
+
 data class JobInput(
     val company: String,
     val role: String,
     val url: String,
     val jdText: String = "",
-    val salaryHint: String = ""
+    val salaryHint: String = "",
+    /**
+     * Heuristic annual CTC in LPA when pay is monthly/hourly or non-Indian wording;
+     * scoring prefers this when explicit "X LPA" is missing.
+     */
+    val salaryAnnualLpaApprox: Double? = null,
+    /** Per-job notes the user adds before generating (memory for this application). */
+    val jobSpecificNotes: String = "",
+    /** Snippets from resume for fit scoring and prompts. */
+    val resumeSummaryForPrompt: String = ""
 )
 
 data class ApplicationPack(

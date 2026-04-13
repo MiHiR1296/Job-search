@@ -2,12 +2,16 @@ package com.careerops.mobile.llm
 
 import com.careerops.mobile.data.CandidateProfile
 import com.careerops.mobile.data.JobInput
+import com.careerops.mobile.data.StructuredJobDraft
 
 interface LocalLlmEngine {
     suspend fun generateCoverLetter(jobInput: JobInput, profile: CandidateProfile): String
     suspend fun generateResumeHighlights(jobInput: JobInput, profile: CandidateProfile): String
     suspend fun suggestApplyDecision(jobInput: JobInput, profile: CandidateProfile): String
     suspend fun summarizeCareerMemory(existingMemory: String, latestNarrative: String, profile: CandidateProfile): String
+
+    /** Optional structured extraction from noisy JD text; default unsupported. */
+    suspend fun extractStructuredJobFromJd(rawJd: String, profile: CandidateProfile): StructuredJobDraft? = null
 }
 
 class StubLocalLlmEngine : LocalLlmEngine {

@@ -6,6 +6,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
+import androidx.browser.customtabs.CustomTabColorSchemeParams
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -73,7 +75,8 @@ class MainActivity : ComponentActivity() {
                 MainScreen(
                     viewModel = viewModel,
                     onPickResumeDocument = ::openResumeDocumentPicker,
-                    onStartVoiceCapture = ::requestVoiceCapture
+                    onStartVoiceCapture = ::requestVoiceCapture,
+                    onOpenJobInCustomTab = ::openJobUrlInCustomTab
                 )
             }
         }
@@ -101,6 +104,18 @@ class MainActivity : ComponentActivity() {
         if (stream != null) {
             handlePickedDocument(stream)
         }
+    }
+
+    private fun openJobUrlInCustomTab(url: String) {
+        if (url.isBlank()) return
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return
+        if (uri.scheme != "http" && uri.scheme != "https") return
+        val schemeParams = CustomTabColorSchemeParams.Builder().build()
+        val intent = CustomTabsIntent.Builder()
+            .setDefaultColorSchemeParams(schemeParams)
+            .setShowTitle(true)
+            .build()
+        intent.launchUrl(this, uri)
     }
 
     private fun openResumeDocumentPicker() {

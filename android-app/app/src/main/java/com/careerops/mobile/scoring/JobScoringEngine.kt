@@ -7,7 +7,15 @@ import com.careerops.mobile.web.JobPageExtractor
 
 class JobScoringEngine {
     fun score(jobInput: JobInput, profile: CandidateProfile): JobInsight {
-        val text = jobInput.jdText.lowercase()
+        val text = buildString {
+            append(jobInput.jdText)
+            append("\n")
+            append(jobInput.resumeSummaryForPrompt)
+            append("\n")
+            append(profile.careerMemory)
+            append("\n")
+            append(jobInput.jobSpecificNotes)
+        }.lowercase()
 
         var score = 0.0
         val reasons = mutableListOf<String>()
@@ -33,6 +41,19 @@ class JobScoringEngine {
             reasons.add("Matched $strengthHits of your declared strengths.")
         }
 
+        if (profile.careerMemory.isNotBlank()) {
+            val memTokens = profile.careerMemory.lowercase().split(Regex("\\W+")).filter { it.length > 5 }.distinct().take(40)
+            val memHits = memTokens.count { tok -> tok.isNotBlank() && text.contains(tok) }
+            if (memHits > 0) {
+                score += minOf(0.8, memHits * 0.15)
+                reasons.add("JD overlaps with $memHits themes from your saved career memory.")
+            }
+        }
+
+        if (jobInput.jobSpecificNotes.isNotBlank()) {
+            reasons.add("Per-job notes from you were included in this evaluation.")
+        }
+
         // Experience alignment
         val years = profile.yearsExperience.toIntOrNull() ?: 0
         if (years >= 7) {
@@ -48,12 +69,12 @@ class JobScoringEngine {
         }
 
         // Compensation hint alignment
-        val salaryText = JobPageExtractor.detectSalary(jobInput.jdText)
+        val salaryText = jobInput.salaryHint.ifBlank { JobPageExtractor.detectSalaryExpanded(jobInput.jdText) }
         if (salaryText.isNotBlank()) {
             reasons.add("Salary hint detected: $salaryText")
             val expected = profile.expectedCtcLpa.toDoubleOrNull()
             val minAccept = profile.minimumAcceptableLpa.toDoubleOrNull()
-            val jdLpa = extractLpaNumber(salaryText)
+            val jdLpa = extractLpaNumber(salaryText) ?: jobInput.salaryAnnualLpaApprox
             if (jdLpa != null && minAccept != null && expected != null) {
                 when {
                     jdLpa >= expected -> {
@@ -66,6 +87,11 @@ class JobScoringEngine {
                     }
                     else -> reasons.add("Detected pay appears below your minimum target.")
                 }
+                if (jobInput.salaryAnnualLpaApprox != null && extractLpaNumber(salaryText) == null) {
+                    reasons.add("CTC comparison used an approximate annual LPA from monthly/non-LPA wording.")
+                }
+            } else if (Regex("""(?i)(/mo|/month|\bper month\b|\bmonthly\b|\b/hr\b|\bper hour\b)""").containsMatchIn(salaryText)) {
+                reasons.add("Pay appears to be hourly or monthly (not LPA); compare manually to your CTC targets.")
             }
         }
 
