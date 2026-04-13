@@ -57,11 +57,40 @@ If you later add cloud APIs, keep them optional and off by default.
 3. Let Gradle sync complete.
 4. Run app on OnePlus 12R (USB debugging) or emulator.
 
-## Minimum requirements
+## Minimum requirements (build machine)
 
 - Android Studio Hedgehog or newer
 - Android SDK 34
 - JDK 17 (bundled with Android Studio recommended)
+
+## On-device GGUF (local LLM) — RAM vs storage
+
+**Free disk space (e.g. 6–7 GB)** only needs to be **larger than the GGUF file** (~0.9–1.1 GB for Qwen2.5 1.5B Q4_K_M). Storage is rarely why the app “crashes.”
+
+**RAM is what matters.** A silent exit (app disappears, no error) during **Generating…** usually means one of:
+
+1. **Low Memory Killer (LMK)** — Android kills the whole process when **total system RAM** pressure is high. Loading weights + **KV cache** (grows with **context length**) + **WebView** + **Compose** + other apps can exceed what the system will allow **your** process to hold, even on a “small” 1.5B model.
+2. **Native abort** — the bundled **llama.cpp / JNI** layer can terminate the process on hard failures (OOM inside native code, rare alignment bugs, or extreme resource limits), which also looks like an instant close.
+
+**Why a wrong / missing model path does not reproduce the bug:** in that case the app never loads the heavy native model (or load fails cleanly) and falls back to the **stub** template path — almost no extra native RAM and no long `generate()` run.
+
+### Rough ballpark (not a guarantee)
+
+| Piece | Order of magnitude (1.5B Q4, context ~4k) |
+|--------|-------------------------------------------|
+| GGUF weights (memory-mapped or resident) | ~1 GB |
+| KV / runtime overhead (context, threads, decode) | hundreds of MB upward (depends on build, `n_ctx`, batching) |
+| One generation pass | one peak |
+| **Full “pack” flow** | **several** sequential local calls (structured extract + cover + bullets + decision) | **Repeated peaks** |
+
+So **8 GB phone RAM** can work for **1.5B Q4** *if* the system leaves enough **contiguous / available** RAM and you are not also holding a heavy WebView page, games, or many background apps. **8 GB “free space” on disk does not add RAM.**
+
+### Practical tips on the phone
+
+- Prefer **Qwen2.5 1.5B Instruct Q4_K_M** (or smaller quant like **Q4_0** if you need to shave RAM at the cost of quality).
+- **Force-close other apps** or reboot before a long generate session.
+- If it still dies: use **AI Setup → API mode** for generation (local can stay for experiments), or keep local only for the smallest model you can find.
+- **OnePlus 12** is often sold with **12 GB / 16 GB RAM** in many regions; if your device truly reports **8 GB total RAM**, treat it as a tighter budget than a 12 GB variant.
 
 ## Current app flow
 
@@ -84,7 +113,7 @@ If you later add cloud APIs, keep them optional and off by default.
 - **Local mode**: no API key required.
   - First tries on-device llama.cpp (`org.codeshipping:llama-kotlin-android`) with the GGUF path from **AI Setup**.
   - If the model is missing, fails to load, or returns **empty text**, the app falls back to a short **stub** draft (you will see an explicit note in the cover letter). Empty generations are often a **chat-template mismatch** (Qwen2.5 uses ChatML `im_start` / `im_end`; Llama 3.x uses `begin_of_text` + `start_header_id` / `eot_id`). The app picks the Llama 3 wrapper when the file path contains `llama-3`, `llama3`, `meta-llama-3`, etc.; otherwise it uses the Qwen-style wrapper.
-  - Defaults use **4096** context and **768** max new tokens; very long JDs are truncated before prompting.
+  - Defaults use **4096** context, **512** max new tokens, and **2** inference threads (tuned for mid-range RAM); very long JDs are truncated before prompting.
 - **Job text to the model**: JSON-LD metadata is merged into captured text for scoring and field fill, then the `---STRUCTURED_JOB_METADATA---` block is **stripped** before cover-letter prompts so the model does not echo it. Employer/title from that block are parsed into company/role even when generic line heuristics miss.
 - **API key mode**: user provides:
   - API Base URL
@@ -120,14 +149,11 @@ Keep prompts concise and context trimmed to avoid latency spikes.
 - Qwen2.5 3B Instruct (4-bit) if memory/latency acceptable
 - Phi-3.5 Mini Instruct (quantized), benchmark before committing
 
-Recommendation for first production attempt on OnePlus 12R:
+Recommendation for **8 GB RAM class** phones:
 
-1. Use **Qwen2.5 7B–8B instruct Q4_K_M** on device when you want stronger reasoning; keep **1.5B** only for smoke tests.
-2. Measure:
-   - first-token latency,
-   - total generation time for ~220-word cover letter,
-   - thermal behavior over 5 consecutive generations.
-3. If the phone cannot hold a 7B model in RAM, use **local heuristics + JSON-LD extraction** for job fields and switch **AI Setup → API mode** for cover-letter quality when needed.
+1. Stay on **Qwen2.5 1.5B (4-bit)** for on-device smoke tests and light use; treat **7B–8B** on-device as **high risk** on 8 GB total RAM (may load then fail mid-run when WebView + second pass spike).
+2. Measure: first-token latency, total time for a full pack, and whether the process survives **four** sequential local calls.
+3. If the app still closes silently: prefer **API mode** for real use, or a **smaller quant** / smaller model file—not more free disk space alone.
 
 ## Debug install upgrades (no uninstall loop)
 
