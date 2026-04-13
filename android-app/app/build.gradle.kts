@@ -1,6 +1,24 @@
+import org.gradle.api.Project
+import java.io.ByteArrayOutputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+/** Monotonic-ish version so adb / package installer can upgrade over prior debug APKs. */
+fun careerOpsVersionCode(project: Project): Int {
+    return try {
+        val out = ByteArrayOutputStream()
+        project.exec {
+            commandLine("git", "rev-list", "--count", "HEAD")
+            workingDir = project.rootProject.projectDir
+            standardOutput = out
+        }
+        out.toString().trim().toIntOrNull()?.coerceIn(1, 2_100_000_000) ?: 1
+    } catch (_: Exception) {
+        1
+    }
 }
 
 android {
@@ -11,7 +29,7 @@ android {
         applicationId = "com.careerops.mobile"
         minSdk = 29
         targetSdk = 34
-        versionCode = 1
+        versionCode = careerOpsVersionCode(project)
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -20,7 +38,19 @@ android {
         }
     }
 
+    signingConfigs {
+        create("careerOpsSharedDebug") {
+            storeFile = rootProject.file("keystore/career-ops-debug.jks")
+            storePassword = "android"
+            keyAlias = "careeropsdebug"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("careerOpsSharedDebug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

@@ -129,6 +129,14 @@ Recommendation for first production attempt on OnePlus 12R:
    - thermal behavior over 5 consecutive generations.
 3. If the phone cannot hold a 7B model in RAM, use **local heuristics + JSON-LD extraction** for job fields and switch **AI Setup → API mode** for cover-letter quality when needed.
 
+## Debug install upgrades (no uninstall loop)
+
+Debug APKs are signed with the **shared** keystore under `android-app/keystore/career-ops-debug.jks` (see that folder’s README). That way **CI builds and local Android Studio builds** use the **same signing key**, so you can install a new debug APK over the old one like a normal update.
+
+`versionCode` is set from **`git rev-list --count HEAD`**, so each new commit produces a higher version and Android accepts upgrades. CI checks out with **full git history** (`fetch-depth: 0`) so the count is not stuck at `1`.
+
+**One-time migration:** If you already have the app installed from an **older** build that used the default debug key or a different machine key, Android will refuse the update. **Uninstall once**, then install a build from this setup; after that, in-place upgrades should work.
+
 ## Manual verification checklist (post UX overhaul)
 
 - Cold install: Onboarding wizard appears; resume upload auto-fills; finishing onboarding lands on **Job** tab.

@@ -21,6 +21,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history so app versionCode (git commit count) matches local clones and always increases.
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
