@@ -85,7 +85,6 @@ class MainActivity : ComponentActivity() {
                     viewModel = viewModel,
                     onPickResumeDocument = ::openResumeDocumentPicker,
                     onPickLocalModelFile = ::openLocalModelFilePicker,
-                    onStartVoiceCapture = ::requestVoiceCapture,
                     onOpenJobInCustomTab = ::openJobUrlInCustomTab
                 )
             }

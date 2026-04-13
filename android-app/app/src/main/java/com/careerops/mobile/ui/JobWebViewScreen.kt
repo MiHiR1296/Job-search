@@ -4,6 +4,9 @@ import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
@@ -12,31 +15,38 @@ import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,23 +54,24 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private class PageCaptureBridge(
+    private val mainHandler: Handler,
     private val onPageTextCaptured: (String) -> Unit,
     private val onVisibleTextCaptured: (String) -> Unit,
     private val onJsonLdCaptured: (String) -> Unit
 ) {
     @JavascriptInterface
     fun postPageText(text: String) {
-        onPageTextCaptured(text)
+        mainHandler.post { onPageTextCaptured(text) }
     }
 
     @JavascriptInterface
     fun postVisibleText(text: String) {
-        onVisibleTextCaptured(text)
+        mainHandler.post { onVisibleTextCaptured(text) }
     }
 
     @JavascriptInterface
     fun postJsonLdPayload(text: String) {
-        onJsonLdCaptured(text)
+        mainHandler.post { onJsonLdCaptured(text) }
     }
 }
 
@@ -78,16 +89,20 @@ fun JobWebViewScreen(
     onCaptureAndGenerate: (() -> Unit)? = null
 ) {
     val isLoading = remember { mutableStateOf(true) }
-    val bridge = remember(onPageTextCaptured, onVisibleTextCaptured, onJsonLdCaptured) {
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
+    val bridge = remember(mainHandler, onPageTextCaptured, onVisibleTextCaptured, onJsonLdCaptured) {
         PageCaptureBridge(
+            mainHandler = mainHandler,
             onPageTextCaptured = onPageTextCaptured,
             onVisibleTextCaptured = onVisibleTextCaptured,
             onJsonLdCaptured = onJsonLdCaptured
         )
     }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var oauthPopupWebView by remember { mutableStateOf<WebView?>(null) }
     val timeoutScope = remember { CoroutineScope(Dispatchers.Main) }
     var timeoutJob by remember { mutableStateOf<Job?>(null) }
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp.dp
 
     fun requestCapture() {
         webViewRef?.evaluateJavascript(
@@ -110,17 +125,96 @@ fun JobWebViewScreen(
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    fun dismissOAuthPopup() {
+        val wv = oauthPopupWebView ?: return
+        (wv.parent as? ViewGroup)?.removeView(wv)
+        runCatching { wv.stopLoading() }
+        runCatching { wv.destroy() }
+        oauthPopupWebView = null
+    }
+
+    oauthPopupWebView?.let { popupView ->
+        Dialog(
+            onDismissRequest = { dismissOAuthPopup() },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .sizeIn(maxHeight = screenHeightDp * 9 / 10)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Sign-in or verification window",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { dismissOAuthPopup() }) {
+                            Text("Close")
+                        }
+                    }
+                    Text(
+                        "Complete login here, then close. The job page stays open underneath.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    AndroidView(
+                        factory = { ctx ->
+                            FrameLayout(ctx).apply {
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                                post {
+                                    (popupView.parent as? ViewGroup)?.removeView(popupView)
+                                    addView(
+                                        popupView,
+                                        FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT
+                                        )
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(screenHeightDp * 7 / 10)
+                    )
+                }
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            tonalElevation = 1.dp,
+            shadowElevation = 0.dp
+        ) {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp)
             ) {
+                Text(
+                    "Job page",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
@@ -130,7 +224,7 @@ fun JobWebViewScreen(
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(if (onCaptureAndGenerate != null) "Capture + Generate" else "Capture page text")
+                        Text(if (onCaptureAndGenerate != null) "Capture + Generate" else "Capture text")
                     }
                     Button(
                         onClick = { requestCapture() },
@@ -139,30 +233,38 @@ fun JobWebViewScreen(
                         Text("Refresh suggestions")
                     }
                 }
-                    TextButton(
-                        onClick = {
-                            val target = webViewRef?.url ?: url
-                            if (target.isNotBlank()) {
-                                runCatching {
-                                    val context = webViewRef?.context ?: return@runCatching
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Open current page in browser (fallback for difficult logins)")
-                    }
-                    TextButton(
-                        onClick = { onOpenCustomTab() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Open job in Custom Tab (Indeed / heavy logins)")
-                    }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onOpenCustomTab() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open in Custom Tab (recommended for LinkedIn / Google sign-in)")
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "If the page stays white after tapping Log in, use Custom Tab — in-app WebView often cannot show every OAuth popup.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                TextButton(
+                    onClick = {
+                        val target = webViewRef?.url ?: url
+                        if (target.isNotBlank()) {
+                            runCatching {
+                                val context = webViewRef?.context ?: return@runCatching
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open same URL in external browser (last resort)")
+                }
+            }
+        }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { context ->
@@ -197,6 +299,8 @@ fun JobWebViewScreen(
                                     settings.setSupportMultipleWindows(true)
                                     settings.userAgentString =
                                         settings.userAgentString + " CareerOpsMobileWebView/1.0"
+                                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                     webViewClient = object : WebViewClient() {
                                         override fun shouldOverrideUrlLoading(
                                             view: WebView?,
@@ -204,20 +308,30 @@ fun JobWebViewScreen(
                                         ): Boolean {
                                             val target = request?.url?.toString().orEmpty()
                                             if (target.startsWith("http://") || target.startsWith("https://")) {
-                                                parent.loadUrl(target)
-                                            } else if (target.isNotBlank()) {
+                                                return false
+                                            }
+                                            if (target.startsWith("intent:") || target.startsWith("linkedin://")) {
                                                 runCatching {
                                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
                                                 }
+                                                return true
                                             }
-                                            return true
+                                            return false
                                         }
                                     }
                                 }
                                 val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
                                 transport.webView = popup
                                 resultMsg.sendToTarget()
+                                oauthPopupWebView = popup
                                 return true
+                            }
+
+                            override fun onCloseWindow(window: WebView?) {
+                                if (window != null && window === oauthPopupWebView) {
+                                    dismissOAuthPopup()
+                                }
+                                super.onCloseWindow(window)
                             }
                         }
                         webViewClient = object : WebViewClient() {
@@ -228,11 +342,18 @@ fun JobWebViewScreen(
                                 val target = request?.url?.toString().orEmpty()
                                 return if (target.startsWith("http://") || target.startsWith("https://")) {
                                     false
-                                } else {
+                                } else if (target.startsWith("intent:") || target.startsWith("linkedin://")) {
                                     runCatching {
                                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
                                     }
                                     true
+                                } else if (target.isNotBlank()) {
+                                    runCatching {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                                    }
+                                    true
+                                } else {
+                                    false
                                 }
                             }
 
@@ -283,10 +404,10 @@ fun JobWebViewScreen(
                     }
                 }
             )
-        }
 
-        if (isLoading.value) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            if (isLoading.value) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
         }
     }
 
@@ -297,6 +418,7 @@ fun JobWebViewScreen(
     DisposableEffect(Unit) {
         onDispose {
             timeoutJob?.cancel()
+            dismissOAuthPopup()
         }
     }
 }

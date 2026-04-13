@@ -14,31 +14,46 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Web
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
@@ -48,30 +63,74 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.careerops.mobile.data.CandidateProfile
 import com.careerops.mobile.service.BubbleOverlayService
+import kotlinx.coroutines.launch
 
-private enum class MainTab { ONBOARD, AI_SETUP, JOB, WEBVIEW, RESULTS, MEMORY }
+private enum class MainRoute {
+    HomeJob,
+    HomeResults,
+    JobWebView,
+    AiSetup,
+    Profile
+}
 
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
     onPickResumeDocument: () -> Unit,
     onPickLocalModelFile: () -> Unit,
-    onStartVoiceCapture: (String) -> Unit,
     onOpenJobInCustomTab: (String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    if (!state.profile.onboardingCompleted) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            OnboardingTab(
+                profile = state.profile,
+                onSave = viewModel::saveProfile,
+                onPickResumeDocument = onPickResumeDocument,
+                onFinished = { }
+            )
+        }
+        return
+    }
+
+    CareerOpsMainShell(
+        state = state,
+        viewModel = viewModel,
+        onPickResumeDocument = onPickResumeDocument,
+        onPickLocalModelFile = onPickLocalModelFile,
+        onOpenJobInCustomTab = onOpenJobInCustomTab
+    )
+}
+
+@Composable
+private fun CareerOpsMainShell(
+    state: MainUiState,
+    viewModel: MainViewModel,
+    onPickResumeDocument: () -> Unit,
+    onPickLocalModelFile: () -> Unit,
+    onOpenJobInCustomTab: (String) -> Unit
+) {
     val context = LocalContext.current
-    var selectedTab by remember { mutableStateOf(MainTab.ONBOARD) }
-    var didApplyInitialTab by remember { mutableStateOf(false) }
-    LaunchedEffect(state.profile) {
-        if (!didApplyInitialTab) {
-            didApplyInitialTab = true
-            selectedTab = if (state.profile.onboardingCompleted) MainTab.JOB else MainTab.ONBOARD
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var routeKey by rememberSaveable { mutableStateOf(MainRoute.HomeJob.name) }
+    val route = runCatching { MainRoute.valueOf(routeKey) }.getOrDefault(MainRoute.HomeJob)
+    fun navigateTo(r: MainRoute) {
+        routeKey = r.name
+    }
+
+    LaunchedEffect(state.profile.onboardingCompleted) {
+        if (state.profile.onboardingCompleted) {
+            navigateTo(MainRoute.HomeJob)
         }
     }
     LaunchedEffect(state.isAutoGenerating, state.url) {
         if (state.isAutoGenerating && state.url.isNotBlank()) {
-            selectedTab = MainTab.WEBVIEW
+            navigateTo(MainRoute.JobWebView)
         }
     }
     LaunchedEffect(state.autoFlowRequestedAtMs, state.isGenerating, state.isAutoGenerating, state.latestPackFolder) {
@@ -81,135 +140,204 @@ fun MainScreen(
             !state.isAutoGenerating &&
             state.latestPackFolder.isNotBlank()
         ) {
-            selectedTab = MainTab.RESULTS
+            navigateTo(MainRoute.HomeResults)
         }
     }
     LaunchedEffect(state.shouldAutoStartFromShare, state.url) {
         if (state.shouldAutoStartFromShare && state.url.isNotBlank()) {
             viewModel.startAutoFlowFromShare()
             viewModel.onSharedJobAutoStartHandled()
-            selectedTab = MainTab.WEBVIEW
+            navigateTo(MainRoute.JobWebView)
         }
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                Tab(
-                    selected = selectedTab == MainTab.ONBOARD,
-                    onClick = { selectedTab = MainTab.ONBOARD },
-                    text = { Text("Onboarding") },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(modifier = Modifier.fillMaxHeight(0.92f)) {
+                Text(
+                    "Career Ops",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp)
                 )
-                Tab(
-                    selected = selectedTab == MainTab.AI_SETUP,
-                    onClick = { selectedTab = MainTab.AI_SETUP },
-                    text = { Text("AI Setup") },
-                    icon = { Icon(Icons.Default.Tune, contentDescription = null) }
+                NavigationDrawerItem(
+                    label = { Text("Job input") },
+                    selected = route == MainRoute.HomeJob,
+                    onClick = {
+                        navigateTo(MainRoute.HomeJob)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.EditNote, contentDescription = null) }
                 )
-                Tab(
-                    selected = selectedTab == MainTab.JOB,
-                    onClick = { selectedTab = MainTab.JOB },
-                    text = { Text("Job Input") }
+                NavigationDrawerItem(
+                    label = { Text("Results") },
+                    selected = route == MainRoute.HomeResults,
+                    onClick = {
+                        navigateTo(MainRoute.HomeResults)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Article, contentDescription = null) }
                 )
-                Tab(
-                    selected = selectedTab == MainTab.WEBVIEW,
-                    onClick = { selectedTab = MainTab.WEBVIEW },
-                    text = { Text("In-App Page") },
+                NavigationDrawerItem(
+                    label = { Text("Job page (sign-in & capture)") },
+                    selected = route == MainRoute.JobWebView,
+                    onClick = {
+                        navigateTo(MainRoute.JobWebView)
+                        scope.launch { drawerState.close() }
+                    },
                     icon = { Icon(Icons.Default.Web, contentDescription = null) }
                 )
-                Tab(
-                    selected = selectedTab == MainTab.RESULTS,
-                    onClick = { selectedTab = MainTab.RESULTS },
-                    text = { Text("Results") }
+                NavigationDrawerItem(
+                    label = { Text("AI setup") },
+                    selected = route == MainRoute.AiSetup,
+                    onClick = {
+                        navigateTo(MainRoute.AiSetup)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Tune, contentDescription = null) }
                 )
-                Tab(
-                    selected = selectedTab == MainTab.MEMORY,
-                    onClick = { selectedTab = MainTab.MEMORY },
-                    text = { Text("Memory") }
+                NavigationDrawerItem(
+                    label = { Text("Profile") },
+                    selected = route == MainRoute.Profile,
+                    onClick = {
+                        navigateTo(MainRoute.Profile)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Person, contentDescription = null) }
                 )
             }
-
-            when (selectedTab) {
-                MainTab.ONBOARD -> OnboardingTab(
-                    profile = state.profile,
-                    onSave = viewModel::saveProfile,
-                    onPickResumeDocument = onPickResumeDocument,
-                    onFinished = { selectedTab = MainTab.JOB }
-                )
-                MainTab.AI_SETUP -> AiSetupTab(
-                    state = state,
-                    onModeChange = viewModel::updateAiSetupModeDraft,
-                    onLocalModelPathChange = viewModel::updateAiSetupLocalModelPathDraft,
-                    onPickLocalModelFile = onPickLocalModelFile,
-                    onApiBaseUrlChange = viewModel::updateAiSetupApiBaseUrlDraft,
-                    onApiModelChange = viewModel::updateAiSetupApiModelDraft,
-                    onApiKeyChange = viewModel::updateAiSetupApiKeyDraft,
-                    onSave = viewModel::saveAiSetupDraftsToProfile,
-                    onTestApi = viewModel::testApiConnection,
-                    onManualCaptureMode = viewModel::setManualCaptureMode
-                )
-                MainTab.JOB -> JobInputTab(
-                    state = state,
-                    onCompany = viewModel::updateCompany,
-                    onRole = viewModel::updateRole,
-                    onUrl = viewModel::updateUrl,
-                    onJd = viewModel::updateJdText,
-                    onGenerate = viewModel::generatePack,
-                    onAutoGenerate = viewModel::startAutoGenerateFromUrlOnly,
-                    onEditProfile = { selectedTab = MainTab.ONBOARD },
-                    onStartBubble = {
-                        val serviceIntent = Intent(context, BubbleOverlayService::class.java)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            context.startForegroundService(serviceIntent)
-                        } else {
-                            context.startService(serviceIntent)
+        }
+    ) {
+        Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            when (route) {
+                                MainRoute.HomeJob -> "Job input"
+                                MainRoute.HomeResults -> "Results"
+                                MainRoute.JobWebView -> "Job page"
+                                MainRoute.AiSetup -> "AI setup"
+                                MainRoute.Profile -> "Profile"
+                            }
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Open menu")
                         }
                     }
                 )
-                MainTab.WEBVIEW -> {
-                    if (state.url.isBlank()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text("Enter/share a job URL in Job Input first.")
-                        }
-                    } else {
-                        if (state.webViewLoadError.isNotBlank()) {
-                            StatusMessageBox(state.webViewLoadError)
-                        }
-                        JobWebViewScreen(
-                            url = state.url,
-                            autoCaptureOnLoad = !state.manualCaptureMode,
-                            onPageTextCaptured = { viewModel.updateExtractedPageText(it) },
-                            onVisibleTextCaptured = { viewModel.refreshSuggestionsFromVisibleText(it) },
-                            onJsonLdCaptured = { viewModel.updateJsonLdFromPage(it) },
-                            onLoadError = { viewModel.reportWebViewLoadError(it) },
-                            onClearLoadError = { viewModel.clearWebViewLoadError() },
-                            onOpenCustomTab = { onOpenJobInCustomTab(state.url) },
-                            onCaptureAndGenerate = { viewModel.requestGenerateAfterManualCapture() }
+            },
+            bottomBar = {
+                if (route == MainRoute.HomeJob || route == MainRoute.HomeResults) {
+                    NavigationBar {
+                        NavigationBarItem(
+                            icon = { Icon(Icons.Default.EditNote, contentDescription = null) },
+                            label = { Text("Job") },
+                            selected = route == MainRoute.HomeJob,
+                            onClick = { navigateTo(MainRoute.HomeJob) }
+                        )
+                        NavigationBarItem(
+                            icon = { Icon(Icons.Default.Article, contentDescription = null) },
+                            label = { Text("Results") },
+                            selected = route == MainRoute.HomeResults,
+                            onClick = { navigateTo(MainRoute.HomeResults) }
                         )
                     }
                 }
-                MainTab.RESULTS -> ResultsTab(
-                    state = state,
-                    onJobExtraChange = viewModel::updateJobExtraContext,
-                    onRegenerate = viewModel::generatePack
-                )
-                MainTab.MEMORY -> MemoryTab(
-                    state = state,
-                    onStartVoice = onStartVoiceCapture,
-                    onClearDraft = viewModel::clearNarrativeDraft,
-                    onEditDraft = viewModel::updateNarrativeDraft,
-                    onSummarize = viewModel::summarizeNarrativeIntoMemory
-                )
+            }
+        ) { innerPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    when (route) {
+                    MainRoute.HomeJob -> JobInputTab(
+                        state = state,
+                        onCompany = viewModel::updateCompany,
+                        onRole = viewModel::updateRole,
+                        onUrl = viewModel::updateUrl,
+                        onJd = viewModel::updateJdText,
+                        onGenerate = viewModel::generatePack,
+                        onAutoGenerate = viewModel::startAutoGenerateFromUrlOnly,
+                        onOpenJobPage = {
+                            navigateTo(MainRoute.JobWebView)
+                            scope.launch { drawerState.close() }
+                        },
+                        onOpenProfile = {
+                            navigateTo(MainRoute.Profile)
+                            scope.launch { drawerState.close() }
+                        },
+                        onStartBubble = {
+                            val serviceIntent = Intent(context, BubbleOverlayService::class.java)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                context.startForegroundService(serviceIntent)
+                            } else {
+                                context.startService(serviceIntent)
+                            }
+                        }
+                    )
+                    MainRoute.HomeResults -> ResultsTab(
+                        state = state,
+                        onJobExtraChange = viewModel::updateJobExtraContext,
+                        onRegenerate = viewModel::generatePack
+                    )
+                    MainRoute.JobWebView -> {
+                        if (state.url.isBlank()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text("Add a job URL on Job input first (menu → Job input).")
+                            }
+                        } else {
+                            Column(Modifier.fillMaxSize()) {
+                                if (state.webViewLoadError.isNotBlank()) {
+                                    StatusMessageBox(state.webViewLoadError)
+                                }
+                                JobWebViewScreen(
+                                    url = state.url,
+                                    autoCaptureOnLoad = !state.manualCaptureMode,
+                                    onPageTextCaptured = { viewModel.updateExtractedPageText(it) },
+                                    onVisibleTextCaptured = { viewModel.refreshSuggestionsFromVisibleText(it) },
+                                    onJsonLdCaptured = { viewModel.updateJsonLdFromPage(it) },
+                                    onLoadError = { viewModel.reportWebViewLoadError(it) },
+                                    onClearLoadError = { viewModel.clearWebViewLoadError() },
+                                    onOpenCustomTab = { onOpenJobInCustomTab(state.url) },
+                                    onCaptureAndGenerate = { viewModel.requestGenerateAfterManualCapture() }
+                                )
+                            }
+                        }
+                    }
+                    MainRoute.AiSetup -> AiSetupTab(
+                        state = state,
+                        onModeChange = viewModel::updateAiSetupModeDraft,
+                        onLocalModelPathChange = viewModel::updateAiSetupLocalModelPathDraft,
+                        onPickLocalModelFile = onPickLocalModelFile,
+                        onApiBaseUrlChange = viewModel::updateAiSetupApiBaseUrlDraft,
+                        onApiModelChange = viewModel::updateAiSetupApiModelDraft,
+                        onApiKeyChange = viewModel::updateAiSetupApiKeyDraft,
+                        onSave = viewModel::saveAiSetupDraftsToProfile,
+                        onTestApi = viewModel::testApiConnection,
+                        onManualCaptureMode = viewModel::setManualCaptureMode
+                    )
+                    MainRoute.Profile -> OnboardingTab(
+                        profile = state.profile,
+                        onSave = viewModel::saveProfile,
+                        onPickResumeDocument = onPickResumeDocument,
+                        onFinished = {
+                            navigateTo(MainRoute.HomeJob)
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+                }
             }
         }
     }
@@ -419,7 +547,7 @@ private fun OnboardingTab(
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             if (profile.onboardingCompleted) {
-                "Update your details anytime. Job flow opens on the Job tab after first setup."
+                "Update your details anytime. The app opens on Job input after setup."
             } else {
                 "Upload your resume once. We auto-detect what we can, then only ask for typical gaps (CTC targets, notice, etc.)."
             },
@@ -668,7 +796,8 @@ private fun JobInputTab(
     onJd: (String) -> Unit,
     onGenerate: () -> Unit,
     onAutoGenerate: () -> Unit,
-    onEditProfile: () -> Unit,
+    onOpenJobPage: () -> Unit,
+    onOpenProfile: () -> Unit,
     onStartBubble: () -> Unit
 ) {
     Column(
@@ -677,15 +806,20 @@ private fun JobInputTab(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        Text("Job Input", style = MaterialTheme.typography.headlineSmall)
+        Text("Job input", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "Paste/share a URL and use One-tap URL flow. Company, role, and JD are auto-extracted from the in-app page.",
+            "Paste or share a job link. Use the menu (☰) → Job page to sign in and capture the listing, or One-tap flow when manual capture is off.",
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
-        TextButton(onClick = onEditProfile) {
-            Text("Edit profile / onboarding")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onOpenJobPage) {
+                Text("Open job page")
+            }
+            TextButton(onClick = onOpenProfile) {
+                Text("Profile")
+            }
         }
         if (state.webViewLoadError.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -771,9 +905,9 @@ private fun JobInputTab(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 if (state.manualCaptureMode) {
-                    "Manual mode: open In-App Page tab and press Capture + Generate."
+                    "Manual mode: open Job page from the menu (☰), then tap Capture + Generate."
                 } else {
-                    "Auto mode running: in-app page capture, scoring, and generation are in progress."
+                    "Auto mode: job page opens, then capture and generation run automatically."
                 },
                 style = MaterialTheme.typography.bodySmall
             )
@@ -853,71 +987,3 @@ private fun ResultsTab(
     }
 }
 
-@Composable
-private fun MemoryTab(
-    state: MainUiState,
-    onStartVoice: (String) -> Unit,
-    onClearDraft: () -> Unit,
-    onEditDraft: (String) -> Unit,
-    onSummarize: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-    ) {
-        Text("Voice Career Memory", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "Dictate your story. The app summarizes important long-term points for future applications.",
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Text("Prompt:", style = MaterialTheme.typography.titleSmall)
-        Text(state.knowledgePrompt, style = MaterialTheme.typography.bodySmall)
-        Spacer(modifier = Modifier.height(12.dp))
-        Button(onClick = { onStartVoice("careerNarrative") }, modifier = Modifier.fillMaxWidth()) {
-            Text("Start voice dictation")
-        }
-        if (state.statusMessage.contains("voice", ignoreCase = true) ||
-            state.statusMessage.contains("microphone", ignoreCase = true) ||
-            state.statusMessage.contains("speech recognition", ignoreCase = true)
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(state.statusMessage, style = MaterialTheme.typography.bodySmall)
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        TextButton(onClick = onClearDraft, modifier = Modifier.fillMaxWidth()) {
-            Text("Clear dictated draft")
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        OutlinedTextField(
-            value = state.voiceDraftNarrative,
-            onValueChange = onEditDraft,
-            label = { Text("Dictated draft") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 6,
-            readOnly = false
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Button(
-            onClick = onSummarize,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isSummarizingMemory
-        ) {
-            Text("Summarize into long-term memory")
-        }
-        if (state.isSummarizingMemory) {
-            Spacer(modifier = Modifier.height(8.dp))
-            CircularProgressIndicator()
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Current long-term memory", style = MaterialTheme.typography.titleSmall)
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            if (state.profile.careerMemory.isBlank()) "No memory saved yet." else state.profile.careerMemory,
-            style = MaterialTheme.typography.bodySmall
-        )
-    }
-}
