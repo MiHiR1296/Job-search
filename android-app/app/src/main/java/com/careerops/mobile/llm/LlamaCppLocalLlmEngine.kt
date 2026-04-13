@@ -184,7 +184,7 @@ class LlamaCppLocalLlmEngine(
     }
 
     /** Must only be called while holding [inferenceMutex]. */
-    private fun loadModelIfNeededLocked(modelPath: String): LlamaModel? {
+    private suspend fun loadModelIfNeededLocked(modelPath: String): LlamaModel? {
         val current = model
         if (current != null && loadedModelPath == modelPath) {
             return current
