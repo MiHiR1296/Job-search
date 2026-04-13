@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class MainUiState(
     val profile: CandidateProfile = CandidateProfile(),
@@ -88,6 +89,7 @@ class MainViewModel(
         "What compensation, location, or notice constraints matter most to you?"
     )
     private var knowledgePromptIndex = 0
+    private val generatePackInFlight = AtomicBoolean(false)
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
@@ -459,109 +461,128 @@ class MainViewModel(
         }
 
         viewModelScope.launch {
-            push(state.copy(isGenerating = true, statusMessage = "Generating pack..."))
-
-            val effectiveJd = when {
-                state.extractedPageText.isNotBlank() -> state.extractedPageText
-                state.jdText.isNotBlank() -> state.jdText
-                else -> ""
+            if (!generatePackInFlight.compareAndSet(false, true)) {
+                push(_uiState.value.copy(statusMessage = "Generation is already running."))
+                return@launch
             }
+            try {
+                push(state.copy(isGenerating = true, statusMessage = "Generating pack..."))
 
-            val structuredLlm: StructuredJobDraft? = withContext(Dispatchers.IO) {
-                if (effectiveJd.isBlank()) null
-                else llmEngine.extractStructuredJobFromJd(effectiveJd, state.profile)
-            }
+                val effectiveJd = when {
+                    state.extractedPageText.isNotBlank() -> state.extractedPageText
+                    state.jdText.isNotBlank() -> state.jdText
+                    else -> ""
+                }
 
-            val structuredFromHeader = JobPageExtractor.parseInjectedStructuredMetadataHeader(effectiveJd)
-            val structuredFromJsonLd = JobPageExtractor.structuredDraftFromJsonLd(state.lastJsonLdRaw)
-            val structuredMerged = JobPageExtractor.mergeStructuredJobDrafts(
-                structuredFromHeader,
-                structuredFromJsonLd,
-                structuredLlm
-            )
+                val structuredLlm: StructuredJobDraft? = withContext(Dispatchers.IO) {
+                    if (effectiveJd.isBlank()) null
+                    else llmEngine.extractStructuredJobFromJd(effectiveJd, state.profile)
+                }
 
-            var detectedCompany = if (state.company.isBlank()) {
-                structuredMerged.company.ifBlank { JobPageExtractor.detectCompany(effectiveJd) }
-            } else {
-                state.company.trim()
-            }
-            var detectedRole = if (state.role.isBlank()) {
-                structuredMerged.role.ifBlank { JobPageExtractor.detectRole(effectiveJd) }
-            } else {
-                state.role.trim()
-            }
-
-            var detectedSalary = JobPageExtractor.detectSalaryExpanded(effectiveJd)
-            if (detectedSalary.isBlank()) detectedSalary = structuredMerged.salaryRaw.ifBlank {
-                structuredLlm?.salaryRaw?.trim().orEmpty()
-            }
-
-            val jdForGeneration = JobPageExtractor.stripInjectedStructuredMetadata(effectiveJd)
-
-            val salaryBlob = listOf(detectedSalary, structuredMerged.salaryRaw, structuredLlm?.salaryRaw.orEmpty())
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-                .distinct()
-                .joinToString(" | ")
-            val lpaApprox = SalaryNormalizer.approximateAnnualLpa(
-                salaryText = salaryBlob,
-                payPeriodHint = structuredMerged.payPeriodHint.ifBlank {
-                    structuredLlm?.payPeriodHint ?: "unknown"
-                },
-                extraContext = effectiveJd.take(4000)
-            )
-
-            val resumeSummary = state.profile.resumeTextSnapshot.ifBlank { state.profile.strengths }.take(6000)
-
-            val jobInput = JobInput(
-                company = detectedCompany.ifBlank { "Unknown Company" },
-                role = detectedRole.ifBlank { "Unknown Role" },
-                url = state.url.trim(),
-                jdText = jdForGeneration,
-                salaryHint = detectedSalary,
-                salaryAnnualLpaApprox = lpaApprox,
-                jobSpecificNotes = state.jobExtraContext.trim(),
-                resumeSummaryForPrompt = resumeSummary
-            )
-
-            val insight = scoringEngine.score(jobInput, state.profile)
-
-            val pack: ApplicationPack = withContext(Dispatchers.IO) {
-                repository.generatePack(jobInput, state.profile)
-            }
-            val coverLetter = withContext(Dispatchers.IO) {
-                llmEngine.generateCoverLetter(jobInput, state.profile)
-            }
-            val resumeHighlights = withContext(Dispatchers.IO) {
-                llmEngine.generateResumeHighlights(jobInput, state.profile)
-            }
-            val applyDecision = withContext(Dispatchers.IO) {
-                llmEngine.suggestApplyDecision(jobInput, state.profile)
-            }
-
-            withContext(Dispatchers.IO) {
-                writeGeneratedOutputs(pack.folderName, jobInput, coverLetter, resumeHighlights)
-            }
-
-            push(
-                _uiState.value.copy(
-                    isGenerating = false,
-                    isAutoGenerating = false,
-                    pendingAutoGenerateAfterExtraction = false,
-                    company = insight.detectedCompany.ifBlank { jobInput.company },
-                    role = insight.detectedRole.ifBlank { jobInput.role },
-                    latestPackFolder = pack.folderName,
-                    detectedCompany = insight.detectedCompany,
-                    detectedRole = insight.detectedRole,
-                    detectedSalaryHint = insight.detectedSalaryText.ifBlank { detectedSalary },
-                    fitScore = insight.score,
-                    recommendation = if (applyDecision == "Strong Apply" && insight.recommendation == "Apply") "Strong Apply" else insight.recommendation,
-                    recommendationReasons = insight.reasons,
-                    generatedCoverLetter = coverLetter,
-                    generatedResumeHighlights = resumeHighlights,
-                    statusMessage = "Pack generated at ${pack.folderPath}"
+                val structuredFromHeader = JobPageExtractor.parseInjectedStructuredMetadataHeader(effectiveJd)
+                val structuredFromJsonLd = JobPageExtractor.structuredDraftFromJsonLd(state.lastJsonLdRaw)
+                val structuredMerged = JobPageExtractor.mergeStructuredJobDrafts(
+                    structuredFromHeader,
+                    structuredFromJsonLd,
+                    structuredLlm
                 )
-            )
+
+                var detectedCompany = if (state.company.isBlank()) {
+                    structuredMerged.company.ifBlank { JobPageExtractor.detectCompany(effectiveJd) }
+                } else {
+                    state.company.trim()
+                }
+                var detectedRole = if (state.role.isBlank()) {
+                    structuredMerged.role.ifBlank { JobPageExtractor.detectRole(effectiveJd) }
+                } else {
+                    state.role.trim()
+                }
+
+                var detectedSalary = JobPageExtractor.detectSalaryExpanded(effectiveJd)
+                if (detectedSalary.isBlank()) detectedSalary = structuredMerged.salaryRaw.ifBlank {
+                    structuredLlm?.salaryRaw?.trim().orEmpty()
+                }
+
+                val jdForGeneration = JobPageExtractor.stripInjectedStructuredMetadata(effectiveJd)
+
+                val salaryBlob = listOf(detectedSalary, structuredMerged.salaryRaw, structuredLlm?.salaryRaw.orEmpty())
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .joinToString(" | ")
+                val lpaApprox = SalaryNormalizer.approximateAnnualLpa(
+                    salaryText = salaryBlob,
+                    payPeriodHint = structuredMerged.payPeriodHint.ifBlank {
+                        structuredLlm?.payPeriodHint ?: "unknown"
+                    },
+                    extraContext = effectiveJd.take(4000)
+                )
+
+                val resumeSummary = state.profile.resumeTextSnapshot.ifBlank { state.profile.strengths }.take(6000)
+
+                val jobInput = JobInput(
+                    company = detectedCompany.ifBlank { "Unknown Company" },
+                    role = detectedRole.ifBlank { "Unknown Role" },
+                    url = state.url.trim(),
+                    jdText = jdForGeneration,
+                    salaryHint = detectedSalary,
+                    salaryAnnualLpaApprox = lpaApprox,
+                    jobSpecificNotes = state.jobExtraContext.trim(),
+                    resumeSummaryForPrompt = resumeSummary
+                )
+
+                val insight = scoringEngine.score(jobInput, state.profile)
+
+                val pack: ApplicationPack = withContext(Dispatchers.IO) {
+                    repository.generatePack(jobInput, state.profile)
+                }
+                val coverLetter = withContext(Dispatchers.IO) {
+                    llmEngine.generateCoverLetter(jobInput, state.profile)
+                }
+                val resumeHighlights = withContext(Dispatchers.IO) {
+                    llmEngine.generateResumeHighlights(jobInput, state.profile)
+                }
+                val applyDecision = withContext(Dispatchers.IO) {
+                    llmEngine.suggestApplyDecision(jobInput, state.profile)
+                }
+
+                withContext(Dispatchers.IO) {
+                    writeGeneratedOutputs(pack.folderName, jobInput, coverLetter, resumeHighlights)
+                }
+
+                push(
+                    _uiState.value.copy(
+                        isGenerating = false,
+                        isAutoGenerating = false,
+                        pendingAutoGenerateAfterExtraction = false,
+                        pendingGenerateAfterManualCapture = false,
+                        company = insight.detectedCompany.ifBlank { jobInput.company },
+                        role = insight.detectedRole.ifBlank { jobInput.role },
+                        latestPackFolder = pack.folderName,
+                        detectedCompany = insight.detectedCompany,
+                        detectedRole = insight.detectedRole,
+                        detectedSalaryHint = insight.detectedSalaryText.ifBlank { detectedSalary },
+                        fitScore = insight.score,
+                        recommendation = if (applyDecision == "Strong Apply" && insight.recommendation == "Apply") "Strong Apply" else insight.recommendation,
+                        recommendationReasons = insight.reasons,
+                        generatedCoverLetter = coverLetter,
+                        generatedResumeHighlights = resumeHighlights,
+                        statusMessage = "Pack generated at ${pack.folderPath}"
+                    )
+                )
+            } catch (t: Throwable) {
+                push(
+                    _uiState.value.copy(
+                        isGenerating = false,
+                        isAutoGenerating = false,
+                        pendingAutoGenerateAfterExtraction = false,
+                        pendingGenerateAfterManualCapture = false,
+                        statusMessage = "Generation failed: ${t.message ?: t.javaClass.simpleName}"
+                    )
+                )
+            } finally {
+                generatePackInFlight.set(false)
+            }
         }
     }
 

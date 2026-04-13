@@ -16,7 +16,11 @@ class LlamaCppLocalLlmEngine(
     @Volatile
     private var model: LlamaModel? = null
     private var loadedModelPath: String? = null
-    private val modelLoadMutex = Mutex()
+    /**
+     * llama.cpp / JNI is not safe for concurrent generate() on one context.
+     * Guard load + generate together (not just load).
+     */
+    private val inferenceMutex = Mutex()
 
     override suspend fun generateCoverLetter(jobInput: JobInput, profile: CandidateProfile): String {
         val system = """
@@ -102,7 +106,8 @@ class LlamaCppLocalLlmEngine(
             {"company":"","role":"","location":"","salary_raw":"","pay_period":"","responsibilities":""}
             pay_period must be one of: monthly, yearly, lpa, hourly, unknown. No markdown, no prose.
         """.trimIndent().trim()
-        val user = rawJd.take(12000)
+        // Keep well under context window in *tokens* (chars >> tokens for noisy page text).
+        val user = rawJd.take(6000)
         val raw = generateWithLocalModel(system, user, profile, sanitize = false)
         val parsed = LlmStructuredJobParser.parseStructuredJobJson(sanitizeExtractJson(raw))
         return parsed ?: fallbackEngine.extractStructuredJobFromJd(rawJd, profile)
@@ -161,12 +166,12 @@ class LlamaCppLocalLlmEngine(
         user: String,
         profile: CandidateProfile,
         sanitize: Boolean = true
-    ): String {
+    ): String = inferenceMutex.withLock {
         val modelPath = profile.localModelPath.trim().ifBlank {
             "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf"
         }
-        if (modelPath.isBlank()) return ""
-        val engine = loadModelIfNeeded(modelPath) ?: return ""
+        if (modelPath.isBlank()) return@withLock ""
+        val engine = loadModelIfNeededLocked(modelPath) ?: return@withLock ""
         val prompt = wrapChat(system, user, modelPath)
         var result = runCatching { engine.generate(prompt).trim() }.getOrDefault("")
         if (sanitize) result = sanitizeModelOutput(result)
@@ -175,32 +180,31 @@ class LlamaCppLocalLlmEngine(
             result = runCatching { engine.generate(shortPrompt).trim() }.getOrDefault("")
             if (sanitize) result = sanitizeModelOutput(result)
         }
-        return result
+        result
     }
 
-    private suspend fun loadModelIfNeeded(modelPath: String): LlamaModel? {
-        return modelLoadMutex.withLock {
-            val current = model
-            if (current != null && loadedModelPath == modelPath) {
-                return@withLock current
-            }
-            runCatching { current?.close() }
-            val loaded = runCatching {
-                LlamaModel.load(modelPath) {
-                    contextSize = config.contextSize
-                    maxTokens = config.maxTokens
-                    temperature = config.temperature
-                    topP = config.topP
-                    topK = config.topK
-                    repeatPenalty = config.repeatPenalty
-                    threads = config.threads
-                    threadsBatch = config.threadsBatch
-                }
-            }.getOrNull()
-            model = loaded
-            loadedModelPath = if (loaded != null) modelPath else null
-            loaded
+    /** Must only be called while holding [inferenceMutex]. */
+    private fun loadModelIfNeededLocked(modelPath: String): LlamaModel? {
+        val current = model
+        if (current != null && loadedModelPath == modelPath) {
+            return current
         }
+        runCatching { current?.close() }
+        val loaded = runCatching {
+            LlamaModel.load(modelPath) {
+                contextSize = config.contextSize
+                maxTokens = config.maxTokens
+                temperature = config.temperature
+                topP = config.topP
+                topK = config.topK
+                repeatPenalty = config.repeatPenalty
+                threads = config.threads
+                threadsBatch = config.threadsBatch
+            }
+        }.getOrNull()
+        model = loaded
+        loadedModelPath = if (loaded != null) modelPath else null
+        return loaded
     }
 
     private fun normalizeDecision(raw: String): String {
@@ -273,8 +277,9 @@ class LlamaCppLocalLlmEngine(
     }
 
     companion object {
-        private const val JD_CHARS_COVER = 4500
-        private const val JD_CHARS_RESUME = 4500
-        private const val JD_CHARS_DECISION = 4000
+        /** Conservative caps: token count is lower than char count, esp. with chat templates. */
+        private const val JD_CHARS_COVER = 3200
+        private const val JD_CHARS_RESUME = 3200
+        private const val JD_CHARS_DECISION = 2800
     }
 }
