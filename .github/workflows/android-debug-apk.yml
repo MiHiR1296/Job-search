@@ -68,14 +68,15 @@ jobs:
             '.[].tagName | select(test("^debug-apk-")) | select(. != $keep)' \
             | while read -r t; do
               [ -z "${t:-}" ] && continue
-              echo "  delete release: $t"
-              gh release delete "$t" --yes || true
-              gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${t}" 2>/dev/null || true
+              echo "  delete release + tag: $t"
+              gh release delete "$t" --yes --cleanup-tag 2>/dev/null || true
             done
 
           echo "Recreating rolling release ${TAG}…"
-          gh release delete "$TAG" --yes 2>/dev/null || true
-          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" 2>/dev/null || true
+          # --cleanup-tag removes the git tag (required before gh release create can reuse the tag name).
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          ENC="$(TAG="${TAG}" python3 -c "import os, urllib.parse; print(urllib.parse.quote('refs/tags/' + os.environ['TAG'], safe=''))")"
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/${ENC}" 2>/dev/null || true
 
           NOTES_FILE=$(mktemp)
           {
