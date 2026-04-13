@@ -9,6 +9,10 @@ Weight files (`.gguf`) are **large** (often 1–8+ GB). They are **not** committ
 
 Use a model that matches the app’s chat format (see main Android build doc): **Qwen2.5 Instruct** or **Meta Llama 3.x Instruct** GGUFs work best with the built-in prompt wrappers.
 
+## CI “latest” APK on GitHub
+
+The workflow publishes **one** rolling release (**`debug-apk-latest`**) with `CareerOpsMobile-debug.apk`; older dated `debug-apk-*` releases are removed automatically. See `docs/mobile/ANDROID_APP_BUILD.md`.
+
 ## Option B — Track binaries with Git LFS (team / reproducible builds)
 
 If you need model files **in this repository** (e.g. CI or teammates):

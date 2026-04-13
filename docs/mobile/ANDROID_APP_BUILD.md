@@ -137,6 +137,13 @@ Debug APKs are signed with the **shared** keystore under `android-app/keystore/c
 
 **One-time migration:** If you already have the app installed from an **older** build that used the default debug key or a different machine key, Android will refuse the update. **Uninstall once**, then install a build from this setup; after that, in-place upgrades should work.
 
+## Downloading the CI debug APK
+
+- **GitHub Releases (single “latest” row):** open [Releases](https://github.com/MiHiR1296/Job-search/releases) and use **Career Ops Mobile — Debug (latest)** (`debug-apk-latest`). Each push to `cursor/career-ops-india-78d5` rebuilds that release, uploads **`CareerOpsMobile-debug.apk`**, and **deletes older `debug-apk-*` dated releases** so the page stays clean.
+- **Actions artifacts:** every successful run still uploads `CareerOpsMobile-debug-<sha>` under [Actions](https://github.com/MiHiR1296/Job-search/actions) if you need a specific commit’s APK.
+
+You do **not** need to create date tags anymore for releases; the workflow owns the rolling `debug-apk-latest` tag.
+
 ## Manual verification checklist (post UX overhaul)
 
 - Cold install: Onboarding wizard appears; resume upload auto-fills; finishing onboarding lands on **Job** tab.
