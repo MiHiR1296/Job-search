@@ -8,6 +8,7 @@
 
     <application
         android:allowBackup="true"
+        android:largeHeap="true"
         android:label="Career Ops Mobile"
         android:supportsRtl="true"
         android:theme="@style/Theme.CareerOpsMobile">

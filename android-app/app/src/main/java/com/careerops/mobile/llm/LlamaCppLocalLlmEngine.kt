@@ -4,6 +4,7 @@ import com.careerops.mobile.data.CandidateProfile
 import com.careerops.mobile.data.JobInput
 import com.careerops.mobile.data.StructuredJobDraft
 import com.careerops.mobile.web.JobPageExtractor
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.codeshipping.llamakotlin.LlamaModel
@@ -107,7 +108,7 @@ class LlamaCppLocalLlmEngine(
             pay_period must be one of: monthly, yearly, lpa, hourly, unknown. No markdown, no prose.
         """.trimIndent().trim()
         // Keep well under context window in *tokens* (chars >> tokens for noisy page text).
-        val user = rawJd.take(6000)
+        val user = rawJd.take(4500)
         val raw = generateWithLocalModel(system, user, profile, sanitize = false)
         val parsed = LlmStructuredJobParser.parseStructuredJobJson(sanitizeExtractJson(raw))
         return parsed ?: fallbackEngine.extractStructuredJobFromJd(rawJd, profile)
@@ -161,30 +162,37 @@ class LlamaCppLocalLlmEngine(
         }
     }.toString().trim().let { if (it.isNotBlank()) "\n$it" else "" }
 
+    /**
+     * All native work runs inside [runBlocking] while [inferenceMutex] is held so that:
+     * - [LlamaModel.load] (suspend) does not suspend while holding only the mutex (avoids dispatcher deadlocks).
+     * - load + generate stay on one sequential flow (some JNI stacks are picky about thread hopping).
+     */
     private suspend fun generateWithLocalModel(
         system: String,
         user: String,
         profile: CandidateProfile,
         sanitize: Boolean = true
     ): String = inferenceMutex.withLock {
-        val modelPath = profile.localModelPath.trim().ifBlank {
-            "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf"
-        }
-        if (modelPath.isBlank()) return@withLock ""
-        val engine = loadModelIfNeededLocked(modelPath) ?: return@withLock ""
-        val prompt = wrapChat(system, user, modelPath)
-        var result = runCatching { engine.generate(prompt).trim() }.getOrDefault("")
-        if (sanitize) result = sanitizeModelOutput(result)
-        if (result.isBlank() && user.length > 3000) {
-            val shortPrompt = wrapChat(system, user.take(2800), modelPath)
-            result = runCatching { engine.generate(shortPrompt).trim() }.getOrDefault("")
+        runBlocking {
+            val modelPath = profile.localModelPath.trim().ifBlank {
+                "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+            }
+            if (modelPath.isBlank()) return@runBlocking ""
+            val engine = loadModelIfNeededLockedBlocking(modelPath) ?: return@runBlocking ""
+            val prompt = wrapChat(system, user, modelPath)
+            var result = runCatching { engine.generate(prompt).trim() }.getOrDefault("")
             if (sanitize) result = sanitizeModelOutput(result)
+            if (result.isBlank() && user.length > 3000) {
+                val shortPrompt = wrapChat(system, user.take(2800), modelPath)
+                result = runCatching { engine.generate(shortPrompt).trim() }.getOrDefault("")
+                if (sanitize) result = sanitizeModelOutput(result)
+            }
+            result
         }
-        result
     }
 
-    /** Must only be called while holding [inferenceMutex]. */
-    private suspend fun loadModelIfNeededLocked(modelPath: String): LlamaModel? {
+    /** Call only from inside [runBlocking] within [inferenceMutex] (see [generateWithLocalModel]). */
+    private suspend fun loadModelIfNeededLockedBlocking(modelPath: String): LlamaModel? {
         val current = model
         if (current != null && loadedModelPath == modelPath) {
             return current
