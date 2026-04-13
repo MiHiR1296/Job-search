@@ -1,0 +1,2 @@
+# Large on-device LLM weights: use Git LFS when committing under android-app/models/
+android-app/models/**/*.gguf filter=lfs diff=lfs merge=lfs -text

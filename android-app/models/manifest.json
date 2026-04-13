@@ -1,0 +1,26 @@
+{
+  "description": "Suggested GGUFs for Career Ops Mobile local mode. Download manually or via huggingface-cli; copy path into AI Setup.",
+  "models": [
+    {
+      "id": "qwen2.5-1.5b-instruct-q4_k_m",
+      "family": "qwen2.5",
+      "role": "fast_smoke_test",
+      "huggingface_repo": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+      "notes": "Small; good for latency checks. Default path in app profile often points at a similar filename under /sdcard/Download/."
+    },
+    {
+      "id": "qwen2.5-7b-instruct-q4_k_m",
+      "family": "qwen2.5",
+      "role": "balanced_on_device",
+      "huggingface_repo": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+      "notes": "Stronger reasoning; needs RAM. Uses ChatML (im_start/im_end) in app."
+    },
+    {
+      "id": "meta-llama-3-8b-instruct-q4_k_m",
+      "family": "llama3",
+      "role": "balanced_on_device",
+      "huggingface_repo": "unsloth/Meta-Llama-3.1-8B-Instruct-GGUF",
+      "notes": "Example community GGUF collection; pick exact file from repo files tab. App enables Llama 3 chat wrapper when path contains llama-3 / llama3 / meta-llama-3."
+    }
+  ]
+}

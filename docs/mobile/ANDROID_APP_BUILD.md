@@ -98,6 +98,8 @@ Default local model path in code:
 
 You can place the Qwen2.5 1.5B Q4_K_M GGUF there for immediate on-device generation.
 
+**Repo `android-app/models/`**: contains `manifest.json` (suggested Hugging Face repos) and `README.md` for on-device vs **Git LFS** workflows. GGUF binaries are not committed as plain Git objects; use LFS if the team needs weights in git (see models README).
+
 ## Local LLM options on Android (recommended path)
 
 For true on-device model inference, use one of:
