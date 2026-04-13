@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Web
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +55,7 @@ private enum class MainTab { ONBOARD, AI_SETUP, JOB, WEBVIEW, RESULTS, MEMORY }
 fun MainScreen(
     viewModel: MainViewModel,
     onPickResumeDocument: () -> Unit,
+    onPickLocalModelFile: () -> Unit,
     onStartVoiceCapture: (String) -> Unit,
     onOpenJobInCustomTab: (String) -> Unit
 ) {
@@ -142,6 +145,7 @@ fun MainScreen(
                     state = state,
                     onModeChange = viewModel::updateAiSetupModeDraft,
                     onLocalModelPathChange = viewModel::updateAiSetupLocalModelPathDraft,
+                    onPickLocalModelFile = onPickLocalModelFile,
                     onApiBaseUrlChange = viewModel::updateAiSetupApiBaseUrlDraft,
                     onApiModelChange = viewModel::updateAiSetupApiModelDraft,
                     onApiKeyChange = viewModel::updateAiSetupApiKeyDraft,
@@ -216,6 +220,7 @@ private fun AiSetupTab(
     state: MainUiState,
     onModeChange: (String) -> Unit,
     onLocalModelPathChange: (String) -> Unit,
+    onPickLocalModelFile: () -> Unit,
     onApiBaseUrlChange: (String) -> Unit,
     onApiModelChange: (String) -> Unit,
     onApiKeyChange: (String) -> Unit,
@@ -255,15 +260,33 @@ private fun AiSetupTab(
         Spacer(modifier = Modifier.height(12.dp))
 
         if (!isApiMode) {
-            OutlinedTextField(
-                value = state.aiSetupLocalModelPathDraft,
-                onValueChange = onLocalModelPathChange,
-                label = { Text("Local GGUF model path") },
-                modifier = Modifier.fillMaxWidth()
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = state.aiSetupLocalModelPathDraft,
+                    onValueChange = onLocalModelPathChange,
+                    label = { Text("Local GGUF path") },
+                    modifier = Modifier.weight(1f),
+                    enabled = !state.isImportingLocalModel,
+                    singleLine = true
+                )
+                Button(
+                    onClick = onPickLocalModelFile,
+                    enabled = !state.isImportingLocalModel
+                ) {
+                    Text("Pick file")
+                }
+            }
+            if (state.isImportingLocalModel) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "Stronger reasoning needs a larger instruct GGUF (more RAM). Tap a preset below or paste your own path.",
+                "Use Pick file to choose a .gguf (Downloads, Files, Google Drive, etc.). The app copies it to private storage and sets the path—you can still edit the path manually. Presets below are common /sdcard paths.",
                 style = MaterialTheme.typography.bodySmall
             )
             Spacer(modifier = Modifier.height(8.dp))

@@ -62,6 +62,8 @@ data class MainUiState(
     val aiSetupApiBaseUrlDraft: String = "https://api.openai.com/v1",
     val aiSetupApiModelDraft: String = "gpt-4o-mini",
     val aiSetupApiKeyDraft: String = "",
+    /** True while a picked GGUF is being copied into app-private storage. */
+    val isImportingLocalModel: Boolean = false,
     /** Raw concatenated JSON-LD script bodies from the in-app WebView (see JobWebViewScreen). */
     val lastJsonLdRaw: String = "",
     /** Optional per-job notes the user wants emphasized in prompts and scoring. */
@@ -255,6 +257,29 @@ class MainViewModel(
 
     fun updateAiSetupLocalModelPathDraft(value: String) {
         push(_uiState.value.copy(aiSetupLocalModelPathDraft = value))
+    }
+
+    fun beginLocalModelImport() {
+        push(
+            _uiState.value.copy(
+                isImportingLocalModel = true,
+                statusMessage = "Copying model into app storage…"
+            )
+        )
+    }
+
+    fun finishLocalModelImport(path: String?, errorMessage: String?) {
+        val current = _uiState.value
+        push(
+            current.copy(
+                isImportingLocalModel = false,
+                aiSetupLocalModelPathDraft = path ?: current.aiSetupLocalModelPathDraft,
+                statusMessage = when {
+                    path != null -> "Model copied. Tap Save below to store this path in your profile."
+                    else -> errorMessage ?: "Could not import the selected file."
+                }
+            )
+        )
     }
 
     fun updateAiSetupApiBaseUrlDraft(value: String) {

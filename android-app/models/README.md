@@ -4,8 +4,8 @@ Weight files (`.gguf`) are **large** (often 1–8+ GB). They are **not** committ
 
 ## Option A — Recommended: keep models on the phone
 
-1. Download a GGUF to device storage (e.g. `/sdcard/Download/`).
-2. In the app **AI Setup** tab, set **Local model path** to that file.
+1. Download a GGUF to device storage (e.g. `/sdcard/Download/`), or keep it in Drive/Files.
+2. In the app **AI Setup** tab, tap **Pick file** to choose the `.gguf` (the app copies it to private storage and fills the path), or paste a filesystem path manually.
 
 Use a model that matches the app’s chat format (see main Android build doc): **Qwen2.5 Instruct** or **Meta Llama 3.x Instruct** GGUFs work best with the built-in prompt wrappers.
 

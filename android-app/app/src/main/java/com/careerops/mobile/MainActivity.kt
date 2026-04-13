@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.browser.customtabs.CustomTabColorSchemeParams
@@ -24,6 +25,8 @@ import com.careerops.mobile.voice.VoiceDictationManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
 
@@ -65,6 +68,12 @@ class MainActivity : ComponentActivity() {
         handlePickedDocument(uri)
     }
 
+    private val localModelPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        handlePickedLocalModel(uri)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -75,6 +84,7 @@ class MainActivity : ComponentActivity() {
                 MainScreen(
                     viewModel = viewModel,
                     onPickResumeDocument = ::openResumeDocumentPicker,
+                    onPickLocalModelFile = ::openLocalModelFilePicker,
                     onStartVoiceCapture = ::requestVoiceCapture,
                     onOpenJobInCustomTab = ::openJobUrlInCustomTab
                 )
@@ -128,6 +138,58 @@ class MainActivity : ComponentActivity() {
                 "application/*"
             )
         )
+    }
+
+    private fun openLocalModelFilePicker() {
+        localModelPickerLauncher.launch(
+            arrayOf(
+                "*/*",
+                "application/octet-stream",
+                "application/x-gzip"
+            )
+        )
+    }
+
+    private fun handlePickedLocalModel(uri: Uri?) {
+        if (uri == null) return
+        viewModel.beginLocalModelImport()
+        lifecycleScope.launch {
+            val (path, err) = withContext(Dispatchers.IO) {
+                runCatching { copyUriToInternalModelFile(uri).absolutePath }.fold(
+                    onSuccess = { it to null },
+                    onFailure = { null to (it.message ?: "Could not read the selected file.") }
+                )
+            }
+            viewModel.finishLocalModelImport(path, err)
+        }
+    }
+
+    private fun copyUriToInternalModelFile(uri: Uri): File {
+        val dir = File(filesDir, "llm-models").apply { mkdirs() }
+        val rawName = queryDisplayName(uri)?.trim()?.takeIf { it.isNotBlank() } ?: "model.gguf"
+        val safe = rawName.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(96)
+        val withExt = if (safe.endsWith(".gguf", ignoreCase = true)) safe else "$safe.gguf"
+        val dest = File(dir, withExt)
+        contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(dest).use { output -> input.copyTo(output) }
+        } ?: throw IllegalStateException("Could not open the selected file.")
+        return dest
+    }
+
+    private fun queryDisplayName(uri: Uri): String? {
+        val fromMeta = contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (!cursor.moveToFirst()) return@use null
+            cursor.getString(0)
+        }
+        if (!fromMeta.isNullOrBlank()) return fromMeta
+        val seg = uri.lastPathSegment ?: return null
+        return seg.substringAfterLast('/').takeIf { it.isNotBlank() }
     }
 
     private fun handlePickedDocument(uri: Uri?) {
