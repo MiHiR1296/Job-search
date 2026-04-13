@@ -447,22 +447,42 @@ class MainViewModel(
                 else llmEngine.extractStructuredJobFromJd(effectiveJd, state.profile)
             }
 
-            var detectedCompany = if (state.company.isBlank()) JobPageExtractor.detectCompany(effectiveJd) else state.company.trim()
-            var detectedRole = if (state.role.isBlank()) JobPageExtractor.detectRole(effectiveJd) else state.role.trim()
-            if (detectedCompany.isBlank()) detectedCompany = structuredLlm?.company?.trim().orEmpty()
-            if (detectedRole.isBlank()) detectedRole = structuredLlm?.role?.trim().orEmpty()
+            val structuredFromHeader = JobPageExtractor.parseInjectedStructuredMetadataHeader(effectiveJd)
+            val structuredFromJsonLd = JobPageExtractor.structuredDraftFromJsonLd(state.lastJsonLdRaw)
+            val structuredMerged = JobPageExtractor.mergeStructuredJobDrafts(
+                structuredFromHeader,
+                structuredFromJsonLd,
+                structuredLlm
+            )
+
+            var detectedCompany = if (state.company.isBlank()) {
+                structuredMerged.company.ifBlank { JobPageExtractor.detectCompany(effectiveJd) }
+            } else {
+                state.company.trim()
+            }
+            var detectedRole = if (state.role.isBlank()) {
+                structuredMerged.role.ifBlank { JobPageExtractor.detectRole(effectiveJd) }
+            } else {
+                state.role.trim()
+            }
 
             var detectedSalary = JobPageExtractor.detectSalaryExpanded(effectiveJd)
-            if (detectedSalary.isBlank()) detectedSalary = structuredLlm?.salaryRaw?.trim().orEmpty()
+            if (detectedSalary.isBlank()) detectedSalary = structuredMerged.salaryRaw.ifBlank {
+                structuredLlm?.salaryRaw?.trim().orEmpty()
+            }
 
-            val salaryBlob = listOf(detectedSalary, structuredLlm?.salaryRaw.orEmpty())
+            val jdForGeneration = JobPageExtractor.stripInjectedStructuredMetadata(effectiveJd)
+
+            val salaryBlob = listOf(detectedSalary, structuredMerged.salaryRaw, structuredLlm?.salaryRaw.orEmpty())
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
                 .distinct()
                 .joinToString(" | ")
             val lpaApprox = SalaryNormalizer.approximateAnnualLpa(
                 salaryText = salaryBlob,
-                payPeriodHint = structuredLlm?.payPeriodHint ?: "unknown",
+                payPeriodHint = structuredMerged.payPeriodHint.ifBlank {
+                    structuredLlm?.payPeriodHint ?: "unknown"
+                },
                 extraContext = effectiveJd.take(4000)
             )
 
@@ -472,7 +492,7 @@ class MainViewModel(
                 company = detectedCompany.ifBlank { "Unknown Company" },
                 role = detectedRole.ifBlank { "Unknown Role" },
                 url = state.url.trim(),
-                jdText = effectiveJd,
+                jdText = jdForGeneration,
                 salaryHint = detectedSalary,
                 salaryAnnualLpaApprox = lpaApprox,
                 jobSpecificNotes = state.jobExtraContext.trim(),

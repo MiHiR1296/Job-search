@@ -81,10 +81,11 @@ If you later add cloud APIs, keep them optional and off by default.
 
 ## Provider modes
 
-- **Local mode**: no API key required, uses local fallback generator.
-- **Local mode**:
-  - first tries on-device llama.cpp runtime (`org.codeshipping:llama-kotlin-android`) with a GGUF model path,
-  - if model is missing/fails to load, falls back to internal stub generator.
+- **Local mode**: no API key required.
+  - First tries on-device llama.cpp (`org.codeshipping:llama-kotlin-android`) with the GGUF path from **AI Setup**.
+  - If the model is missing, fails to load, or returns **empty text**, the app falls back to a short **stub** draft (you will see an explicit note in the cover letter). Empty generations are often a **chat-template mismatch** (Qwen2.5 uses ChatML `im_start` / `im_end`; Llama 3.x uses `begin_of_text` + `start_header_id` / `eot_id`). The app picks the Llama 3 wrapper when the file path contains `llama-3`, `llama3`, `meta-llama-3`, etc.; otherwise it uses the Qwen-style wrapper.
+  - Defaults use **4096** context and **768** max new tokens; very long JDs are truncated before prompting.
+- **Job text to the model**: JSON-LD metadata is merged into captured text for scoring and field fill, then the `---STRUCTURED_JOB_METADATA---` block is **stripped** before cover-letter prompts so the model does not echo it. Employer/title from that block are parsed into company/role even when generic line heuristics miss.
 - **API key mode**: user provides:
   - API Base URL
   - API model

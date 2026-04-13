@@ -20,6 +20,7 @@ class StubLocalLlmEngine : LocalLlmEngine {
             .split('\n')
             .map { it.trim() }
             .filter { it.isNotBlank() }
+            .filterNot { it.contains("STRUCTURED_JOB_METADATA", ignoreCase = true) }
             .take(5)
             .joinToString("; ")
 
@@ -30,16 +31,21 @@ class StubLocalLlmEngine : LocalLlmEngine {
             .take(3)
             .joinToString(", ")
 
+        val modelNote = """
+            Note: The on-device model returned no text (check GGUF path, free RAM, and chat template: Qwen vs Llama 3 in docs).
+            This placeholder uses the real job title and company from the page when available.
+        """.trimIndent()
+
         return """
             Dear Hiring Team,
 
             I am excited to apply for ${jobInput.role} at ${jobInput.company}.
             I bring practical experience relevant to this role and a strong track record of delivery.
-            ${if (strengths.isNotBlank()) "My strongest areas for this role are: $strengths." else ""}
+            ${if (strengths.isNotBlank()) "Relevant strengths include: $strengths." else ""}
 
-            ${if (jdSignals.isNotBlank()) "From the job page, key priorities appear to be: $jdSignals" else ""}
+            ${if (jdSignals.isNotBlank()) "From the job description, priorities appear to include: $jdSignals" else ""}
 
-            This draft was generated locally on-device and should be refined once a full local model is connected.
+            $modelNote
 
             Sincerely,
             ${profile.fullName}
@@ -51,6 +57,7 @@ class StubLocalLlmEngine : LocalLlmEngine {
             .split('\n')
             .map { it.trim() }
             .filter { it.isNotBlank() }
+            .filterNot { it.contains("STRUCTURED_JOB_METADATA", ignoreCase = true) }
             .take(8)
             .joinToString("\n- ", prefix = "- ")
 

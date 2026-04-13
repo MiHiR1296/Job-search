@@ -66,7 +66,10 @@ object JobPageExtractor {
             .filterNot { isLowSignalLine(it) }
         val roleHints = listOf(
             "engineer", "artist", "manager", "developer", "architect",
-            "designer", "analyst", "specialist", "consultant", "lead", "intern"
+            "designer", "analyst", "specialist", "consultant", "lead", "intern",
+            "visualizer", "visualiser", "generalist", "modeler", "modeller",
+            "animator", "rendering", "creative", "director", "supervisor",
+            "technician", "producer", "coordinator", "head", "officer"
         )
         return lines.firstOrNull { line ->
             roleHints.any { hint -> line.contains(hint, ignoreCase = true) } &&
@@ -127,6 +130,106 @@ object JobPageExtractor {
 
     fun structuredDraftFromJsonLd(jsonLdConcatenated: String): StructuredJobDraft? =
         JobPostingJsonLdParser.parseFromConcatenatedBlocks(jsonLdConcatenated)
+
+    /**
+     * Parses the header block produced by [mergeJsonLdIntoPageText] so company/role/salary
+     * are available even when line-based heuristics miss (e.g. "Employer:", "Title:").
+     */
+    fun parseInjectedStructuredMetadataHeader(text: String): StructuredJobDraft? {
+        val start = "---STRUCTURED_JOB_METADATA---"
+        val end = "---END_STRUCTURED_JOB_METADATA---"
+        val si = text.indexOf(start)
+        val ei = text.indexOf(end)
+        if (si < 0 || ei <= si) return null
+        val block = text.substring(si + start.length, ei).trim()
+        var company = ""
+        var role = ""
+        var location = ""
+        var salaryRaw = ""
+        var payPeriodHint = "unknown"
+        val responsibilities = StringBuilder()
+        var inDescription = false
+        for (rawLine in block.lines()) {
+            val line = rawLine.trim()
+            if (line.isEmpty()) continue
+            when {
+                line.startsWith("Employer:", ignoreCase = true) ->
+                    company = line.substringAfter("Employer:").trim()
+                line.startsWith("Title:", ignoreCase = true) ->
+                    role = line.substringAfter("Title:").trim()
+                line.startsWith("Location:", ignoreCase = true) ->
+                    location = line.substringAfter("Location:").trim()
+                line.startsWith("Compensation (schema):", ignoreCase = true) -> {
+                    val rest = line.substringAfter("Compensation (schema):").trim()
+                    val open = rest.lastIndexOf('(')
+                    if (open > 0 && rest.endsWith(')')) {
+                        salaryRaw = rest.substring(0, open).trim()
+                        payPeriodHint = rest.substring(open + 1, rest.length - 1).trim()
+                            .ifBlank { "unknown" }
+                    } else {
+                        salaryRaw = rest
+                    }
+                }
+                line.equals("Description (schema excerpt):", ignoreCase = true) -> inDescription = true
+                inDescription -> {
+                    responsibilities.appendLine(line)
+                }
+            }
+        }
+        if (company.isBlank() && role.isBlank() && salaryRaw.isBlank() && location.isBlank()) return null
+        return StructuredJobDraft(
+            company = company,
+            role = role,
+            location = location,
+            salaryRaw = salaryRaw,
+            payPeriodHint = payPeriodHint,
+            responsibilitiesSnippet = responsibilities.toString().trim()
+        )
+    }
+
+    /** Removes injected schema header so LLMs do not echo it in letters. */
+    fun stripInjectedStructuredMetadata(text: String): String {
+        val start = "---STRUCTURED_JOB_METADATA---"
+        val end = "---END_STRUCTURED_JOB_METADATA---"
+        val si = text.indexOf(start)
+        val ei = text.indexOf(end)
+        if (si < 0 || ei <= si) return text
+        val tail = text.substring(ei + end.length)
+        return (text.substring(0, si) + tail)
+            .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
+    }
+
+    /** Prefer first non-blank field in order (earlier drafts win). */
+    fun mergeStructuredJobDrafts(vararg drafts: StructuredJobDraft?): StructuredJobDraft {
+        var company = ""
+        var role = ""
+        var location = ""
+        var salaryRaw = ""
+        var payPeriodHint = "unknown"
+        var responsibilities = ""
+        for (d in drafts) {
+            if (d == null) continue
+            if (company.isBlank() && d.company.isNotBlank()) company = d.company.trim()
+            if (role.isBlank() && d.role.isNotBlank()) role = d.role.trim()
+            if (location.isBlank() && d.location.isNotBlank()) location = d.location.trim()
+            if (salaryRaw.isBlank() && d.salaryRaw.isNotBlank()) {
+                salaryRaw = d.salaryRaw.trim()
+                payPeriodHint = d.payPeriodHint.ifBlank { payPeriodHint }
+            }
+            if (responsibilities.isBlank() && d.responsibilitiesSnippet.isNotBlank()) {
+                responsibilities = d.responsibilitiesSnippet.trim()
+            }
+        }
+        return StructuredJobDraft(
+            company = company,
+            role = role,
+            location = location,
+            salaryRaw = salaryRaw,
+            payPeriodHint = payPeriodHint,
+            responsibilitiesSnippet = responsibilities
+        )
+    }
 
     fun isLikelyJobUrl(url: String): Boolean {
         val normalized = url.lowercase().trim()
