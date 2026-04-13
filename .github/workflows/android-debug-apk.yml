@@ -5,6 +5,8 @@ on:
     branches:
       - "cursor/career-ops-india-78d5"
       - "main"
+    tags:
+      - "debug-apk-*"
   pull_request:
     paths:
       - "android-app/**"
