@@ -157,7 +157,7 @@ Build guide:
 
 ### 9) Android app quick usage
 
-1. Install APK from `apk/CareerOpsMobile-debug.apk`.
+1. Install the latest debug APK from GitHub Actions artifacts (recommended) or a GitHub Release asset.
 2. Open app -> Onboarding tab.
    - Tap **Choose from Files (PDF/DOC/TXT)** to pick resume/documents from Android file picker (no path typing needed).
    - App auto-parses resume and pre-fills fields where possible (name/email/phone/skills/role hints).
@@ -182,6 +182,12 @@ Build guide:
 - Keep API mode optional and only when you want richer reasoning.
 - Never store API keys in repo files; keep only in app onboarding.
 - Use the tracker (`data/applications.md`) after every application to keep momentum.
+
+### 11) Getting the APK (CI artifacts)
+
+- Every push/PR that touches `android-app/` builds a fresh debug APK via GitHub Actions.
+- Download it from the workflow run’s **Artifacts** section (file name like `CareerOpsMobile-debug-<sha>`).
+- Optionally, tag a commit to publish the APK as a GitHub Release asset.
 
 ---
 
