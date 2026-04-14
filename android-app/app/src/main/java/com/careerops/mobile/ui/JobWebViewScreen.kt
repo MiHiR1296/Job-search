@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -376,16 +377,19 @@ fun JobWebViewScreen(
                 Icon(Icons.Default.OpenInBrowser, contentDescription = "Open in Custom Tab")
             }
             FloatingActionButton(
-                onClick = { requestCapture(); onCaptureToBucket?.invoke() },
-                modifier = Modifier.wrapContentSize(),
-                enabled = onCaptureToBucket != null
+                onClick = {
+                    if (onCaptureToBucket != null) {
+                        requestCapture()
+                        onCaptureToBucket.invoke()
+                    }
+                },
+                modifier = Modifier.wrapContentSize()
             ) {
                 Icon(Icons.Default.CameraAlt, contentDescription = "Capture to bucket")
             }
             FloatingActionButton(
                 onClick = { onFinalizeCapture?.invoke() },
-                modifier = Modifier.wrapContentSize(),
-                enabled = onFinalizeCapture != null
+                modifier = Modifier.wrapContentSize()
             ) {
                 Icon(Icons.Default.Check, contentDescription = "Finalize capture")
             }
