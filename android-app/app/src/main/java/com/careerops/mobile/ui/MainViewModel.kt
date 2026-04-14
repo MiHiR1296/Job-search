@@ -1,6 +1,7 @@
 package com.careerops.mobile.ui
 
 import android.content.Context
+import android.os.Debug
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.careerops.mobile.data.ApplicationPack
@@ -16,6 +17,7 @@ import com.careerops.mobile.llm.StubLocalLlmEngine
 import com.careerops.mobile.scoring.JobScoringEngine
 import com.careerops.mobile.scoring.SalaryNormalizer
 import com.careerops.mobile.diagnostics.CrashLogWriter
+import com.careerops.mobile.diagnostics.AppLogger
 import com.careerops.mobile.web.FormSuggestionEngine
 import com.careerops.mobile.web.JobPageExtractor
 import kotlinx.coroutines.Dispatchers
@@ -72,6 +74,10 @@ data class MainUiState(
     /** Optional per-job notes the user wants emphasized in prompts and scoring. */
     val jobExtraContext: String = "",
     val webViewLoadError: String = "",
+    val liveLoggingEnabled: Boolean = false,
+    val devChatPrompt: String = "",
+    val devChatOutput: String = "",
+    val isDevChatRunning: Boolean = false,
     /** Derived whenever state is committed (onboarding / share / normal). */
     val appFlowPhase: AppFlowPhase = AppFlowPhase.FirstRun
 )
@@ -98,7 +104,7 @@ class MainViewModel(
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
-        push(_uiState.value)
+        push(_uiState.value.copy(liveLoggingEnabled = AppLogger.isEnabled()))
         viewModelScope.launch {
             profileStore.profileFlow.collect { profile ->
                 push(_uiState.value.copy(profile = profile))
@@ -110,6 +116,7 @@ class MainViewModel(
     fun ingestSharedText(sharedText: String?) {
         val text = sharedText?.trim().orEmpty()
         if (text.isBlank()) return
+        AppLogger.log(appContext, "share", "ingestSharedText len=${text.length}")
         val maybeUrl = extractFirstUrl(text)
         val isLikelyJob = maybeUrl.isNotBlank() && JobPageExtractor.isLikelyJobUrl(maybeUrl)
         push(
@@ -135,6 +142,7 @@ class MainViewModel(
     fun updateRole(value: String) { push(_uiState.value.copy(role = value)) }
     fun updateUrl(value: String) {
         val current = _uiState.value
+        AppLogger.log(appContext, "job", "updateUrl url=${value.take(200)}")
         push(
             current.copy(
                 url = value,
@@ -168,6 +176,7 @@ class MainViewModel(
     fun updateExtractedPageText(value: String) {
         val state = _uiState.value
         val cleaned = JobPageExtractor.cleanExtractedText(value)
+        AppLogger.log(appContext, "capture", "updateExtractedPageText cleanedLen=${cleaned.length}")
         val merged = if (state.lastJsonLdRaw.isNotBlank()) {
             JobPageExtractor.mergeJsonLdIntoPageText(cleaned, state.lastJsonLdRaw)
         } else {
@@ -216,6 +225,7 @@ class MainViewModel(
             push(state.copy(statusMessage = "Job URL is required."))
             return
         }
+        AppLogger.log(appContext, "generate", "requestGenerateAfterManualCapture url=${state.url.take(200)}")
         push(
             state.copy(
                 pendingGenerateAfterManualCapture = true,
@@ -224,8 +234,136 @@ class MainViewModel(
         )
     }
 
+    fun setLiveLoggingEnabled(enabled: Boolean) {
+        if (enabled) {
+            val path = AppLogger.start(appContext)
+            push(_uiState.value.copy(liveLoggingEnabled = true, statusMessage = "Live logging ON."))
+            AppLogger.log(appContext, "logger", "path=$path")
+        } else {
+            AppLogger.stop(appContext)
+            push(_uiState.value.copy(liveLoggingEnabled = false, statusMessage = "Live logging OFF."))
+        }
+    }
+
+    fun exportLatestLogsToDownloads() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val crash = CrashLogWriter.exportLatestCrashToDownloads(appContext)
+            val session = CrashLogWriter.exportLatestSessionLogToDownloads(appContext)
+            val msg = buildString {
+                append("Exported to Downloads/CareerOpsMobile: ")
+                append(
+                    listOfNotNull(
+                        crash?.let { "crash=$it" },
+                        session?.let { "session=$it" }
+                    ).ifEmpty { listOf("(nothing yet)") }.joinToString(", ")
+                )
+            }
+            withContext(Dispatchers.Main) {
+                push(_uiState.value.copy(statusMessage = msg))
+            }
+        }
+    }
+
+    fun smokeTestLocalModel() {
+        val state = _uiState.value
+        viewModelScope.launch {
+            if (!generatePackInFlight.compareAndSet(false, true)) {
+                push(_uiState.value.copy(statusMessage = "Another operation is already running."))
+                return@launch
+            }
+            val rt = Runtime.getRuntime()
+            val beforeJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+            val beforeNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+            try {
+                push(state.copy(isGenerating = true, statusMessage = "Smoke test: loading model + tiny generation…"))
+                AppLogger.log(appContext, "dev", "smokeTestLocalModel start javaUsedMB=$beforeJavaMb nativeMB=$beforeNativeMb")
+
+                val job = JobInput(
+                    company = "Test",
+                    role = "Test",
+                    url = "",
+                    jdText = "Reply with exactly: OK"
+                )
+                val out = withContext(Dispatchers.Default) {
+                    llmEngine.generateCoverLetter(job, _uiState.value.profile).trim()
+                }.take(280)
+
+                val afterJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+                val afterNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+                AppLogger.log(appContext, "dev", "smokeTestLocalModel done outLen=${out.length} javaUsedMB=$afterJavaMb nativeMB=$afterNativeMb")
+                push(
+                    _uiState.value.copy(
+                        isGenerating = false,
+                        statusMessage = "Smoke test OK. Output: ${out.ifBlank { "(empty)" }} | Java ${beforeJavaMb}→${afterJavaMb}MB, Native ${beforeNativeMb}→${afterNativeMb}MB"
+                    )
+                )
+            } catch (t: Throwable) {
+                CrashLogWriter.writeCaughtThrowable(appContext, "smokeTestLocalModel", t)
+                push(
+                    _uiState.value.copy(
+                        isGenerating = false,
+                        statusMessage = "Smoke test failed: ${t.message ?: t.javaClass.simpleName}. Use Share diagnostics / Export logs."
+                    )
+                )
+            } finally {
+                generatePackInFlight.set(false)
+            }
+        }
+    }
+
     fun setManualCaptureMode(enabled: Boolean) {
         push(_uiState.value.copy(manualCaptureMode = enabled))
+    }
+
+    fun updateDevChatPrompt(value: String) {
+        push(_uiState.value.copy(devChatPrompt = value))
+    }
+
+    fun runDevChat() {
+        val state = _uiState.value
+        val prompt = state.devChatPrompt.trim()
+        if (prompt.isBlank()) {
+            push(state.copy(statusMessage = "Enter a prompt first."))
+            return
+        }
+        viewModelScope.launch {
+            if (!generatePackInFlight.compareAndSet(false, true)) {
+                push(_uiState.value.copy(statusMessage = "Another operation is already running."))
+                return@launch
+            }
+            val rt = Runtime.getRuntime()
+            val beforeJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+            val beforeNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+            try {
+                push(_uiState.value.copy(isDevChatRunning = true, isGenerating = true, statusMessage = "Local chat: generating…"))
+                AppLogger.log(appContext, "chat", "runDevChat start len=${prompt.length} javaUsedMB=$beforeJavaMb nativeMB=$beforeNativeMb")
+                val out = withContext(Dispatchers.Default) {
+                    llmEngine.chat(prompt, _uiState.value.profile).trim()
+                }
+                val afterJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+                val afterNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+                AppLogger.log(appContext, "chat", "runDevChat done outLen=${out.length} javaUsedMB=$afterJavaMb nativeMB=$afterNativeMb")
+                push(
+                    _uiState.value.copy(
+                        isDevChatRunning = false,
+                        isGenerating = false,
+                        devChatOutput = out.ifBlank { "(empty)" },
+                        statusMessage = "Chat done. Java ${beforeJavaMb}→${afterJavaMb}MB, Native ${beforeNativeMb}→${afterNativeMb}MB"
+                    )
+                )
+            } catch (t: Throwable) {
+                CrashLogWriter.writeCaughtThrowable(appContext, "devChat", t)
+                push(
+                    _uiState.value.copy(
+                        isDevChatRunning = false,
+                        isGenerating = false,
+                        statusMessage = "Chat failed: ${t.message ?: t.javaClass.simpleName}. Use Share diagnostics."
+                    )
+                )
+            } finally {
+                generatePackInFlight.set(false)
+            }
+        }
     }
 
     fun saveProfile(updated: CandidateProfile) {

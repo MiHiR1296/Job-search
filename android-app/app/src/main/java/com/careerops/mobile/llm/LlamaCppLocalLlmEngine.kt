@@ -147,6 +147,17 @@ class LlamaCppLocalLlmEngine(
         }
     }
 
+    override suspend fun chat(prompt: String, profile: CandidateProfile): String {
+        val p = prompt.trim()
+        if (p.isBlank()) return ""
+        val system = """
+            You are a helpful assistant. Keep answers short and factual.
+            If the prompt requests a single word or short output, comply exactly.
+        """.trimIndent()
+        val local = generateWithLocalModel(system, p.take(1800), profile)
+        return if (local.isNotBlank()) local else ""
+    }
+
     private fun contextBlock(jobInput: JobInput, profile: CandidateProfile): String = buildString {
         if (profile.careerMemory.isNotBlank()) {
             appendLine("Long-term career memory:")

@@ -10,6 +10,12 @@ interface LocalLlmEngine {
     suspend fun suggestApplyDecision(jobInput: JobInput, profile: CandidateProfile): String
     suspend fun summarizeCareerMemory(existingMemory: String, latestNarrative: String, profile: CandidateProfile): String
 
+    /**
+     * Small interactive prompt (used by Developer Tools).
+     * Default implementation returns empty to signal "unsupported".
+     */
+    suspend fun chat(prompt: String, profile: CandidateProfile): String = ""
+
     /** Optional structured extraction from noisy JD text; default unsupported. */
     suspend fun extractStructuredJobFromJd(rawJd: String, profile: CandidateProfile): StructuredJobDraft? = null
 }
@@ -113,6 +119,11 @@ class StubLocalLlmEngine : LocalLlmEngine {
             )
             if (condensed.isNotBlank()) append(condensed)
         }.trim()
+    }
+
+    override suspend fun chat(prompt: String, profile: CandidateProfile): String {
+        if (prompt.isBlank()) return ""
+        return "Local model not available (check AI Setup → Local GGUF path)."
     }
 }
 

@@ -4,9 +4,12 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.MediaStore
 import android.os.Build
+import android.os.Environment
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.OutputStream
 import java.io.PrintWriter
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -20,6 +23,7 @@ object CrashLogWriter {
 
     private const val CRASH_DIR = "crash_logs"
     private const val MAX_FILES = 12
+    private const val DOWNLOADS_REL_DIR = "Download/CareerOpsMobile"
 
     fun installUncaughtExceptionHandler(app: Context) {
         val ctx = app.applicationContext
@@ -116,6 +120,29 @@ object CrashLogWriter {
     }
 
     /**
+     * Exports the latest crash log (if any) to Downloads/CareerOpsMobile so you can view it in Files app.
+     * Returns the display name written, or null if nothing was exported.
+     */
+    fun exportLatestCrashToDownloads(context: Context): String? {
+        val app = context.applicationContext
+        val latest = latestCrashFile(app) ?: return null
+        if (!latest.exists()) return null
+        val name = "career-ops-crash-${latest.name}"
+        val bytes = latest.readBytes()
+        writeToDownloads(app, name, "text/plain", bytes)
+        return name
+    }
+
+    /**
+     * Exports the latest session log (if any) to Downloads/CareerOpsMobile.
+     */
+    fun exportLatestSessionLogToDownloads(context: Context): String? {
+        // Live logs are written directly to Downloads via MediaStore (see AppLogger).
+        // This function remains for API compatibility with older builds.
+        return AppLogger.currentLogFileName()
+    }
+
+    /**
      * Builds a shareable text file (latest crash + memory header) and opens the system share sheet.
      */
     fun shareDiagnosticsBundle(activityContext: Context) {
@@ -157,5 +184,33 @@ object CrashLogWriter {
         activityContext.startActivity(
             Intent.createChooser(send, "Share diagnostics").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         )
+    }
+
+    private fun writeToDownloads(context: Context, displayName: String, mimeType: String, bytes: ByteArray) {
+        val resolver = context.contentResolver
+        val values = android.content.ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, displayName)
+            put(MediaStore.Downloads.MIME_TYPE, mimeType)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Downloads.RELATIVE_PATH, DOWNLOADS_REL_DIR)
+            } else {
+                @Suppress("DEPRECATION")
+                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val sub = File(dir, "CareerOpsMobile").apply { mkdirs() }
+                put(MediaStore.Downloads.DATA, File(sub, displayName).absolutePath)
+            }
+        }
+
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return
+        var out: OutputStream? = null
+        try {
+            out = resolver.openOutputStream(uri)
+            out?.write(bytes)
+            out?.flush()
+        } catch (_: Throwable) {
+            // ignore export failures (scoped storage variations / OEM quirks)
+        } finally {
+            runCatching { out?.close() }
+        }
     }
 }

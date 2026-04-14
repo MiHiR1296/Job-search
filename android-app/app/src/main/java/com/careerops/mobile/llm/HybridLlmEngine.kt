@@ -155,6 +155,16 @@ class HybridLlmEngine(
         return localEngine.summarizeCareerMemory(existingMemory, latestNarrative, profile)
     }
 
+    override suspend fun chat(prompt: String, profile: CandidateProfile): String {
+        val p = prompt.trim()
+        if (p.isBlank()) return ""
+        if (shouldUseRemote(profile)) {
+            val remote = callRemote(profile, p)
+            if (remote.isNotBlank()) return remote
+        }
+        return localEngine.chat(p, profile)
+    }
+
     suspend fun pingApi(profile: CandidateProfile): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             if (!shouldUseRemote(profile)) {

@@ -3,6 +3,7 @@ package com.careerops.mobile.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Web
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
@@ -71,7 +73,8 @@ private enum class MainRoute {
     HomeResults,
     JobWebView,
     AiSetup,
-    Profile
+    Profile,
+    DevTools
 }
 
 @Composable
@@ -124,6 +127,9 @@ private fun CareerOpsMainShell(
     val scope = rememberCoroutineScope()
     var routeKey by rememberSaveable { mutableStateOf(MainRoute.HomeJob.name) }
     val route = runCatching { MainRoute.valueOf(routeKey) }.getOrDefault(MainRoute.HomeJob)
+    val isDebuggable = remember {
+        (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
     fun navigateTo(r: MainRoute) {
         routeKey = r.name
     }
@@ -210,6 +216,17 @@ private fun CareerOpsMainShell(
                     },
                     icon = { Icon(Icons.Default.Person, contentDescription = null) }
                 )
+                if (isDebuggable) {
+                    NavigationDrawerItem(
+                        label = { Text("Developer tools") },
+                        selected = route == MainRoute.DevTools,
+                        onClick = {
+                            navigateTo(MainRoute.DevTools)
+                            scope.launch { drawerState.close() }
+                        },
+                        icon = { Icon(Icons.Default.BugReport, contentDescription = null) }
+                    )
+                }
             }
         }
     ) {
@@ -332,7 +349,10 @@ private fun CareerOpsMainShell(
                         onSave = viewModel::saveAiSetupDraftsToProfile,
                         onTestApi = viewModel::testApiConnection,
                         onManualCaptureMode = viewModel::setManualCaptureMode,
-                        onShareDiagnostics = onShareDiagnostics
+                        onShareDiagnostics = onShareDiagnostics,
+                        onToggleLiveLogging = viewModel::setLiveLoggingEnabled,
+                        onExportLogs = viewModel::exportLatestLogsToDownloads,
+                        onSmokeTestLocal = viewModel::smokeTestLocalModel
                     )
                     MainRoute.Profile -> OnboardingTab(
                         profile = state.profile,
@@ -342,6 +362,15 @@ private fun CareerOpsMainShell(
                             navigateTo(MainRoute.HomeJob)
                             scope.launch { drawerState.close() }
                         }
+                    )
+                    MainRoute.DevTools -> DeveloperToolsTab(
+                        state = state,
+                        onToggleLiveLogging = viewModel::setLiveLoggingEnabled,
+                        onExportLogs = viewModel::exportLatestLogsToDownloads,
+                        onSmokeTestLocal = viewModel::smokeTestLocalModel,
+                        onShareDiagnostics = onShareDiagnostics,
+                        onDevChatPromptChange = viewModel::updateDevChatPrompt,
+                        onRunDevChat = viewModel::runDevChat
                     )
                 }
             }
@@ -361,7 +390,10 @@ private fun AiSetupTab(
     onSave: () -> Unit,
     onTestApi: () -> Unit,
     onManualCaptureMode: (Boolean) -> Unit,
-    onShareDiagnostics: () -> Unit
+    onShareDiagnostics: () -> Unit,
+    onToggleLiveLogging: (Boolean) -> Unit,
+    onExportLogs: () -> Unit,
+    onSmokeTestLocal: () -> Unit
 ) {
     val isApiMode = state.aiSetupModeDraft.equals("api", ignoreCase = true)
     Column(
@@ -518,6 +550,38 @@ private fun AiSetupTab(
             "ON = app waits for your Capture + Generate button (safer when login pages/ads appear first).",
             style = MaterialTheme.typography.bodySmall
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Live logging", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            "Tap Start once before testing. Logs are written live to Downloads/CareerOpsMobile.",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { onToggleLiveLogging(true) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.liveLoggingEnabled
+        ) {
+            Text(if (state.liveLoggingEnabled) "Live logging is ON" else "Start live logging")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = onExportLogs,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Export latest crash log (if any)")
+        }
+        if (!isApiMode) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onSmokeTestLocal,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.isGenerating
+            ) {
+                Text("Smoke test local model (tiny prompt)")
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
         Text("Diagnostics (no USB needed)", style = MaterialTheme.typography.titleSmall)
         Spacer(modifier = Modifier.height(6.dp))
