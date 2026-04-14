@@ -30,7 +30,10 @@ fun DeveloperToolsTab(
     onRunDevChat: () -> Unit,
     onGenerateDecision: () -> Unit,
     onGenerateHighlights: () -> Unit,
-    onGenerateCoverLetter: () -> Unit
+    onGenerateCoverLetter: () -> Unit,
+    onPreviewDecisionPrompt: () -> Unit,
+    onPreviewHighlightsPrompt: () -> Unit,
+    onPreviewCoverPrompt: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -79,18 +82,41 @@ fun DeveloperToolsTab(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.isGenerating
             ) { Text("Generate Apply Decision (smallest)") }
+            Spacer(modifier = Modifier.height(6.dp))
+            Button(onClick = onPreviewDecisionPrompt, modifier = Modifier.fillMaxWidth()) {
+                Text("Preview prompts: Apply Decision")
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = onGenerateHighlights,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.isGenerating
             ) { Text("Generate Resume Highlights") }
+            Spacer(modifier = Modifier.height(6.dp))
+            Button(onClick = onPreviewHighlightsPrompt, modifier = Modifier.fillMaxWidth()) {
+                Text("Preview prompts: Resume Highlights")
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = onGenerateCoverLetter,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.isGenerating
             ) { Text("Generate Cover Letter (heaviest)") }
+            Spacer(modifier = Modifier.height(6.dp))
+            Button(onClick = onPreviewCoverPrompt, modifier = Modifier.fillMaxWidth()) {
+                Text("Preview prompts: Cover Letter")
+            }
+
+            if (state.devPromptPreviewSystem.isNotBlank() || state.devPromptPreviewUser.isNotBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(state.devPromptPreviewTitle.ifBlank { "Prompt preview" }, style = MaterialTheme.typography.titleSmall)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("SYSTEM", style = MaterialTheme.typography.labelSmall)
+                StatusMessageBox(state.devPromptPreviewSystem)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("USER", style = MaterialTheme.typography.labelSmall)
+                StatusMessageBox(state.devPromptPreviewUser)
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
             Text("Local chat", style = MaterialTheme.typography.titleSmall)

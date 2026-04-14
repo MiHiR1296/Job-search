@@ -80,6 +80,9 @@ data class MainUiState(
     val devChatPrompt: String = "",
     val devChatOutput: String = "",
     val isDevChatRunning: Boolean = false,
+    val devPromptPreviewTitle: String = "",
+    val devPromptPreviewSystem: String = "",
+    val devPromptPreviewUser: String = "",
     val captureBucketSelected: CaptureBucket = CaptureBucket.JobDescription,
     val captureAppendMode: Boolean = true,
     val captureCompanyRoleText: String = "",
@@ -515,6 +518,146 @@ class MainViewModel(
                 push(_uiState.value.copy(isGenerating = false, statusMessage = "Failed: ${t.message ?: t.javaClass.simpleName}"))
             } finally {
                 generatePackInFlight.set(false)
+            }
+        }
+    }
+
+    fun previewPrompts(type: GenerateSingleType) {
+        val state = _uiState.value
+        if (state.url.isBlank()) {
+            push(state.copy(statusMessage = "Job URL is required."))
+            return
+        }
+        val effectiveJd = state.captureJdText.ifBlank {
+            when {
+                state.extractedPageText.isNotBlank() -> state.extractedPageText
+                state.jdText.isNotBlank() -> state.jdText
+                else -> ""
+            }
+        }
+        val jdForGeneration = JobPageExtractor.stripInjectedStructuredMetadata(effectiveJd)
+
+        val company = state.captureCompanyRoleText
+            .ifBlank { state.company }
+            .ifBlank { JobPageExtractor.detectCompany(effectiveJd) }
+            .ifBlank { state.detectedCompany }
+            .ifBlank { "Unknown Company" }
+
+        val role = state.captureCompanyRoleText
+            .ifBlank { state.role }
+            .ifBlank { JobPageExtractor.detectRole(effectiveJd) }
+            .ifBlank { state.detectedRole }
+            .ifBlank { "Unknown Role" }
+
+        val salaryHint = state.captureCompensationText.ifBlank { state.detectedSalaryHint }
+        val resumeSummary = state.profile.resumeTextSnapshot.ifBlank { state.profile.strengths }.take(6000)
+
+        val jobInput = JobInput(
+            company = company,
+            role = role,
+            url = state.url.trim(),
+            jdText = jdForGeneration,
+            salaryHint = salaryHint,
+            jobSpecificNotes = listOf(
+                state.jobExtraContext.trim(),
+                state.captureCompanyInfoText.trim(),
+                state.captureMiscText.trim()
+            ).filter { it.isNotBlank() }.joinToString("\n\n").take(4000),
+            resumeSummaryForPrompt = resumeSummary
+        )
+
+        val (system, user) = buildPromptPreview(type, jobInput, state.profile)
+        push(
+            state.copy(
+                devPromptPreviewTitle = "Prompt preview: ${type.name}",
+                devPromptPreviewSystem = system,
+                devPromptPreviewUser = user,
+                statusMessage = "Showing prompt preview for ${type.name}."
+            )
+        )
+    }
+
+    private fun buildPromptPreview(
+        type: GenerateSingleType,
+        jobInput: JobInput,
+        profile: CandidateProfile
+    ): Pair<String, String> {
+        return when (type) {
+            GenerateSingleType.CoverLetter -> {
+                val system = """
+                    You write tailored, truthful cover letters for job applications in India and globally.
+                    Rules:
+                    - Use the exact Company and Role strings provided in the user message (never write "Unknown Company" or placeholders if real names are given).
+                    - Never paste internal markers, dashed metadata blocks, JSON-LD, or lines starting with "---".
+                    - Tie at least one concrete phrase from the candidate achievements or resume excerpts to a JD theme when possible.
+                    - Plain professional English, under 240 words, no salary negotiation, no invented employers or degrees.
+                """.trimIndent()
+                val user = buildString {
+                    appendLine("Company: ${jobInput.company}")
+                    appendLine("Role: ${jobInput.role}")
+                    appendLine("URL: ${jobInput.url}")
+                    appendLine("Job description (truncated):")
+                    appendLine(jobInput.jdText.take(1800))
+                    appendLine()
+                    appendLine("Candidate:")
+                    appendLine("Name: ${profile.fullName}")
+                    appendLine("Current title: ${profile.currentTitle}")
+                    appendLine("Target role: ${profile.targetRole}")
+                    appendLine("Strengths: ${profile.strengths}")
+                    appendLine("Achievements: ${profile.achievements}")
+                    if (profile.careerMemory.isNotBlank()) {
+                        appendLine("Long-term career memory:")
+                        appendLine(profile.careerMemory.take(5000))
+                    }
+                    if (jobInput.jobSpecificNotes.isNotBlank()) {
+                        appendLine("Per-job notes (candidate wants to emphasize for this role):")
+                        appendLine(jobInput.jobSpecificNotes.take(2000))
+                    }
+                    if (jobInput.resumeSummaryForPrompt.isNotBlank()) {
+                        appendLine("Resume excerpts:")
+                        appendLine(jobInput.resumeSummaryForPrompt.take(4500))
+                    }
+                }.toString().trim()
+                system to user
+            }
+            GenerateSingleType.ResumeHighlights -> {
+                val system = """
+                    Produce ATS-friendly bullet points only for the listed role and company.
+                    Never include metadata markers or "---" sections. Map bullets to JD themes where evidence exists in the profile.
+                """.trimIndent()
+                val user = buildString {
+                    appendLine("Job role: ${jobInput.role}")
+                    appendLine("Company: ${jobInput.company}")
+                    appendLine("JD:")
+                    appendLine(jobInput.jdText.take(2600))
+                    appendLine()
+                    appendLine("Candidate profile:")
+                    appendLine("Current title: ${profile.currentTitle}")
+                    appendLine("Experience (years): ${profile.yearsExperience}")
+                    appendLine("Strengths: ${profile.strengths}")
+                    appendLine("Achievements: ${profile.achievements}")
+                    appendLine()
+                    appendLine("Return 6-10 bullets, each short and action-focused.")
+                }.toString().trim()
+                system to user
+            }
+            GenerateSingleType.ApplyDecision -> {
+                val system = "Classify job fit using one label only from the allowed set."
+                val user = buildString {
+                    appendLine("Allowed labels: Strong Apply, Apply, Review, Skip.")
+                    appendLine("Job role: ${jobInput.role}")
+                    appendLine("Company: ${jobInput.company}")
+                    appendLine("JD:")
+                    appendLine(jobInput.jdText.take(2800))
+                    appendLine()
+                    appendLine("Candidate target role: ${profile.targetRole}")
+                    appendLine("Candidate strengths: ${profile.strengths}")
+                    appendLine("Expected CTC LPA: ${profile.expectedCtcLpa}")
+                    appendLine("Minimum acceptable LPA: ${profile.minimumAcceptableLpa}")
+                    appendLine()
+                    appendLine("Respond with one label only.")
+                }.toString().trim()
+                system to user
             }
         }
     }

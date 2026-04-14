@@ -395,7 +395,10 @@ private fun CareerOpsMainShell(
                         onRunDevChat = viewModel::runDevChat,
                         onGenerateDecision = { viewModel.generateSingle(MainViewModel.GenerateSingleType.ApplyDecision) },
                         onGenerateHighlights = { viewModel.generateSingle(MainViewModel.GenerateSingleType.ResumeHighlights) },
-                        onGenerateCoverLetter = { viewModel.generateSingle(MainViewModel.GenerateSingleType.CoverLetter) }
+                        onGenerateCoverLetter = { viewModel.generateSingle(MainViewModel.GenerateSingleType.CoverLetter) },
+                        onPreviewDecisionPrompt = { viewModel.previewPrompts(MainViewModel.GenerateSingleType.ApplyDecision) },
+                        onPreviewHighlightsPrompt = { viewModel.previewPrompts(MainViewModel.GenerateSingleType.ResumeHighlights) },
+                        onPreviewCoverPrompt = { viewModel.previewPrompts(MainViewModel.GenerateSingleType.CoverLetter) }
                     )
                 }
             }
