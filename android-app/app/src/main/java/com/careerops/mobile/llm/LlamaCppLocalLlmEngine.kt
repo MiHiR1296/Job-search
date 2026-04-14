@@ -297,8 +297,10 @@ class LlamaCppLocalLlmEngine(
 
     companion object {
         /** Conservative caps: token count is lower than char count, esp. with chat templates. */
-        private const val JD_CHARS_COVER = 3200
-        private const val JD_CHARS_RESUME = 3200
+        // Cover letters are the most crash-prone on low-RAM devices (largest prompt + longer output).
+        // Keep this significantly smaller than highlights/decision.
+        private const val JD_CHARS_COVER = 1800
+        private const val JD_CHARS_RESUME = 2600
         private const val JD_CHARS_DECISION = 2800
     }
 }

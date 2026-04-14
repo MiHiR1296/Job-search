@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.careerops.mobile.data.CandidateProfile
+import com.careerops.mobile.diagnostics.AppLogger
 import com.careerops.mobile.service.BubbleOverlayService
 import kotlinx.coroutines.launch
 
@@ -132,6 +133,7 @@ private fun CareerOpsMainShell(
     }
     fun navigateTo(r: MainRoute) {
         routeKey = r.name
+        AppLogger.log(context, "ui", "navigateTo=${r.name}")
     }
 
     LaunchedEffect(state.profile.onboardingCompleted) {
@@ -175,6 +177,7 @@ private fun CareerOpsMainShell(
                     label = { Text("Job input") },
                     selected = route == MainRoute.HomeJob,
                     onClick = {
+                        AppLogger.log(context, "ui", "drawerClick=HomeJob")
                         navigateTo(MainRoute.HomeJob)
                         scope.launch { drawerState.close() }
                     },
@@ -184,6 +187,7 @@ private fun CareerOpsMainShell(
                     label = { Text("Results") },
                     selected = route == MainRoute.HomeResults,
                     onClick = {
+                        AppLogger.log(context, "ui", "drawerClick=HomeResults")
                         navigateTo(MainRoute.HomeResults)
                         scope.launch { drawerState.close() }
                     },
@@ -193,6 +197,7 @@ private fun CareerOpsMainShell(
                     label = { Text("Job page (sign-in & capture)") },
                     selected = route == MainRoute.JobWebView,
                     onClick = {
+                        AppLogger.log(context, "ui", "drawerClick=JobWebView")
                         navigateTo(MainRoute.JobWebView)
                         scope.launch { drawerState.close() }
                     },
@@ -202,6 +207,7 @@ private fun CareerOpsMainShell(
                     label = { Text("AI setup") },
                     selected = route == MainRoute.AiSetup,
                     onClick = {
+                        AppLogger.log(context, "ui", "drawerClick=AiSetup")
                         navigateTo(MainRoute.AiSetup)
                         scope.launch { drawerState.close() }
                     },
@@ -211,6 +217,7 @@ private fun CareerOpsMainShell(
                     label = { Text("Profile") },
                     selected = route == MainRoute.Profile,
                     onClick = {
+                        AppLogger.log(context, "ui", "drawerClick=Profile")
                         navigateTo(MainRoute.Profile)
                         scope.launch { drawerState.close() }
                     },
@@ -221,6 +228,7 @@ private fun CareerOpsMainShell(
                         label = { Text("Developer tools") },
                         selected = route == MainRoute.DevTools,
                         onClick = {
+                            AppLogger.log(context, "ui", "drawerClick=DevTools")
                             navigateTo(MainRoute.DevTools)
                             scope.launch { drawerState.close() }
                         },
@@ -328,13 +336,26 @@ private fun CareerOpsMainShell(
                                 JobWebViewScreen(
                                     url = state.url,
                                     autoCaptureOnLoad = !state.manualCaptureMode,
-                                    onPageTextCaptured = { viewModel.updateExtractedPageText(it) },
+                                    onPageTextCaptured = {
+                                        viewModel.updateExtractedPageText(it)
+                                        if (state.pendingBucketCapture) {
+                                            viewModel.captureToSelectedBucket(it)
+                                            viewModel.onBucketCaptureHandled()
+                                        }
+                                    },
                                     onVisibleTextCaptured = { viewModel.refreshSuggestionsFromVisibleText(it) },
                                     onJsonLdCaptured = { viewModel.updateJsonLdFromPage(it) },
                                     onLoadError = { viewModel.reportWebViewLoadError(it) },
                                     onClearLoadError = { viewModel.clearWebViewLoadError() },
                                     onOpenCustomTab = { onOpenJobInCustomTab(state.url) },
-                                    onCaptureAndGenerate = { viewModel.requestGenerateAfterManualCapture() }
+                                    onCaptureAndGenerate = { viewModel.requestGenerateAfterManualCapture() },
+                                    captureBucketSelected = state.captureBucketSelected,
+                                    captureAppendMode = state.captureAppendMode,
+                                    onToggleAppendMode = viewModel::setCaptureAppendMode,
+                                    onCaptureToBucket = viewModel::beginBucketCapture,
+                                    onClearBucket = { viewModel.clearCaptureBucket(state.captureBucketSelected) },
+                                    onFinalizeCapture = viewModel::finalizeCaptureBuckets,
+                                    onSelectBucket = viewModel::selectCaptureBucket
                                 )
                             }
                         }
@@ -371,7 +392,10 @@ private fun CareerOpsMainShell(
                         onSmokeTestLocal = viewModel::smokeTestLocalModel,
                         onShareDiagnostics = onShareDiagnostics,
                         onDevChatPromptChange = viewModel::updateDevChatPrompt,
-                        onRunDevChat = viewModel::runDevChat
+                        onRunDevChat = viewModel::runDevChat,
+                        onGenerateDecision = { viewModel.generateSingle(MainViewModel.GenerateSingleType.ApplyDecision) },
+                        onGenerateHighlights = { viewModel.generateSingle(MainViewModel.GenerateSingleType.ResumeHighlights) },
+                        onGenerateCoverLetter = { viewModel.generateSingle(MainViewModel.GenerateSingleType.CoverLetter) }
                     )
                 }
             }

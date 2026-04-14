@@ -18,3 +18,20 @@ data class LocalLlmConfig(
     val threadsBatch: Int = 2
 )
 
+object LocalLlmPresets {
+    /**
+     * Extra conservative defaults intended for 6–8GB devices when local models are unstable.
+     * Lower context + fewer tokens reduces KV cache and peak native heap use.
+     */
+    fun lowRam(): LocalLlmConfig = LocalLlmConfig(
+        contextSize = 2048,
+        maxTokens = 256,
+        temperature = 0.3f,
+        topP = 0.9f,
+        topK = 40,
+        repeatPenalty = 1.1f,
+        threads = 2,
+        threadsBatch = 1
+    )
+}
+

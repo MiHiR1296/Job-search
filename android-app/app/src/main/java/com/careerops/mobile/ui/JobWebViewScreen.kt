@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Switch
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -86,7 +88,14 @@ fun JobWebViewScreen(
     onLoadError: (String) -> Unit = {},
     onClearLoadError: () -> Unit = {},
     onOpenCustomTab: () -> Unit = {},
-    onCaptureAndGenerate: (() -> Unit)? = null
+    onCaptureAndGenerate: (() -> Unit)? = null,
+    captureBucketSelected: CaptureBucket = CaptureBucket.JobDescription,
+    captureAppendMode: Boolean = true,
+    onToggleAppendMode: ((Boolean) -> Unit)? = null,
+    onCaptureToBucket: (() -> Unit)? = null,
+    onClearBucket: (() -> Unit)? = null,
+    onFinalizeCapture: (() -> Unit)? = null,
+    onSelectBucket: ((CaptureBucket) -> Unit)? = null
 ) {
     val isLoading = remember { mutableStateOf(true) }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
@@ -232,6 +241,70 @@ fun JobWebViewScreen(
                     ) {
                         Text("Refresh suggestions")
                     }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Capture bucket", style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TextButton(
+                        onClick = { onSelectBucket?.invoke(CaptureBucket.CompanyAndTitle) },
+                        enabled = onSelectBucket != null
+                    ) { Text(if (captureBucketSelected == CaptureBucket.CompanyAndTitle) "Company✓" else "Company") }
+                    TextButton(
+                        onClick = { onSelectBucket?.invoke(CaptureBucket.JobDescription) },
+                        enabled = onSelectBucket != null
+                    ) { Text(if (captureBucketSelected == CaptureBucket.JobDescription) "JD✓" else "JD") }
+                    TextButton(
+                        onClick = { onSelectBucket?.invoke(CaptureBucket.CompanyInfo) },
+                        enabled = onSelectBucket != null
+                    ) { Text(if (captureBucketSelected == CaptureBucket.CompanyInfo) "Info✓" else "Info") }
+                    TextButton(
+                        onClick = { onSelectBucket?.invoke(CaptureBucket.Compensation) },
+                        enabled = onSelectBucket != null
+                    ) { Text(if (captureBucketSelected == CaptureBucket.Compensation) "Pay✓" else "Pay") }
+                    TextButton(
+                        onClick = { onSelectBucket?.invoke(CaptureBucket.Misc) },
+                        enabled = onSelectBucket != null
+                    ) { Text(if (captureBucketSelected == CaptureBucket.Misc) "Misc✓" else "Misc") }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Append", style = MaterialTheme.typography.bodySmall)
+                    Switch(
+                        checked = captureAppendMode,
+                        onCheckedChange = { onToggleAppendMode?.invoke(it) },
+                        enabled = onToggleAppendMode != null
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    OutlinedButton(
+                        onClick = { requestCapture(); onCaptureToBucket?.invoke() },
+                        enabled = onCaptureToBucket != null
+                    ) {
+                        Text("Capture to bucket")
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { onClearBucket?.invoke() },
+                        modifier = Modifier.weight(1f),
+                        enabled = onClearBucket != null
+                    ) { Text("Clear bucket") }
+                    Button(
+                        onClick = { onFinalizeCapture?.invoke() },
+                        modifier = Modifier.weight(1f),
+                        enabled = onFinalizeCapture != null
+                    ) { Text("Finalize capture") }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(

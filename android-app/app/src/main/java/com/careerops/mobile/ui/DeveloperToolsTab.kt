@@ -27,7 +27,10 @@ fun DeveloperToolsTab(
     onSmokeTestLocal: () -> Unit,
     onShareDiagnostics: () -> Unit,
     onDevChatPromptChange: (String) -> Unit,
-    onRunDevChat: () -> Unit
+    onRunDevChat: () -> Unit,
+    onGenerateDecision: () -> Unit,
+    onGenerateHighlights: () -> Unit,
+    onGenerateCoverLetter: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -67,6 +70,27 @@ fun DeveloperToolsTab(
             ) {
                 Text(if (state.isGenerating) "Running…" else "Smoke test (load + tiny generation)")
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Step-by-step generation", style = MaterialTheme.typography.titleSmall)
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onGenerateDecision,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.isGenerating
+            ) { Text("Generate Apply Decision (smallest)") }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onGenerateHighlights,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.isGenerating
+            ) { Text("Generate Resume Highlights") }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onGenerateCoverLetter,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.isGenerating
+            ) { Text("Generate Cover Letter (heaviest)") }
 
             Spacer(modifier = Modifier.height(16.dp))
             Text("Local chat", style = MaterialTheme.typography.titleSmall)

@@ -29,6 +29,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import java.text.SimpleDateFormat
+import java.util.Date
 
 data class MainUiState(
     val profile: CandidateProfile = CandidateProfile(),
@@ -78,8 +80,33 @@ data class MainUiState(
     val devChatPrompt: String = "",
     val devChatOutput: String = "",
     val isDevChatRunning: Boolean = false,
+    val captureBucketSelected: CaptureBucket = CaptureBucket.JobDescription,
+    val captureAppendMode: Boolean = true,
+    val captureCompanyRoleText: String = "",
+    val captureJdText: String = "",
+    val captureCompanyInfoText: String = "",
+    val captureCompensationText: String = "",
+    val captureMiscText: String = "",
+    val captureFinalized: Boolean = false,
+    val captureHistory: List<CaptureEvent> = emptyList(),
+    val pendingBucketCapture: Boolean = false,
     /** Derived whenever state is committed (onboarding / share / normal). */
     val appFlowPhase: AppFlowPhase = AppFlowPhase.FirstRun
+)
+
+enum class CaptureBucket(val label: String) {
+    CompanyAndTitle("Company & title"),
+    JobDescription("Job description"),
+    CompanyInfo("Company info"),
+    Compensation("Compensation"),
+    Misc("Misc")
+}
+
+data class CaptureEvent(
+    val at: String,
+    val bucket: CaptureBucket,
+    val appended: Boolean,
+    val charsAdded: Int
 )
 
 class MainViewModel(
@@ -211,6 +238,89 @@ class MainViewModel(
         }
     }
 
+    fun selectCaptureBucket(bucket: CaptureBucket) {
+        val state = _uiState.value
+        push(state.copy(captureBucketSelected = bucket))
+        AppLogger.log(appContext, "capture", "selectBucket=${bucket.name}")
+    }
+
+    fun setCaptureAppendMode(enabled: Boolean) {
+        val state = _uiState.value
+        push(state.copy(captureAppendMode = enabled))
+        AppLogger.log(appContext, "capture", "appendMode=$enabled")
+    }
+
+    fun clearCaptureBucket(bucket: CaptureBucket) {
+        val state = _uiState.value
+        val next = when (bucket) {
+            CaptureBucket.CompanyAndTitle -> state.copy(captureCompanyRoleText = "")
+            CaptureBucket.JobDescription -> state.copy(captureJdText = "")
+            CaptureBucket.CompanyInfo -> state.copy(captureCompanyInfoText = "")
+            CaptureBucket.Compensation -> state.copy(captureCompensationText = "")
+            CaptureBucket.Misc -> state.copy(captureMiscText = "")
+        }.copy(captureFinalized = false)
+        push(next)
+        AppLogger.log(appContext, "capture", "clearBucket=${bucket.name}")
+    }
+
+    fun captureToSelectedBucket(capturedText: String) {
+        val state = _uiState.value
+        val cleaned = JobPageExtractor.cleanExtractedText(capturedText)
+        val add = cleaned.trim()
+        if (add.isBlank()) {
+            AppLogger.log(appContext, "capture", "captureToBucket skipped (blank)")
+            return
+        }
+        val appended = state.captureAppendMode
+        val bucket = state.captureBucketSelected
+
+        fun merge(old: String): String = when {
+            !appended -> add
+            old.isBlank() -> add
+            else -> (old.trimEnd() + "\n\n" + add).trim()
+        }
+
+        val updated = when (bucket) {
+            CaptureBucket.CompanyAndTitle -> state.copy(captureCompanyRoleText = merge(state.captureCompanyRoleText))
+            CaptureBucket.JobDescription -> state.copy(captureJdText = merge(state.captureJdText))
+            CaptureBucket.CompanyInfo -> state.copy(captureCompanyInfoText = merge(state.captureCompanyInfoText))
+            CaptureBucket.Compensation -> state.copy(captureCompensationText = merge(state.captureCompensationText))
+            CaptureBucket.Misc -> state.copy(captureMiscText = merge(state.captureMiscText))
+        }
+
+        val stamp = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
+        val history = (listOf(
+            CaptureEvent(
+                at = stamp,
+                bucket = bucket,
+                appended = appended,
+                charsAdded = add.length
+            )
+        ) + updated.captureHistory).take(30)
+
+        push(updated.copy(captureFinalized = false, captureHistory = history, statusMessage = "Captured to ${bucket.label} (+${add.length} chars)"))
+        AppLogger.log(appContext, "capture", "captureToBucket=${bucket.name} appended=$appended chars=${add.length}")
+    }
+
+    fun beginBucketCapture() {
+        val state = _uiState.value
+        push(state.copy(pendingBucketCapture = true))
+        AppLogger.log(appContext, "capture", "beginBucketCapture bucket=${state.captureBucketSelected.name}")
+    }
+
+    fun onBucketCaptureHandled() {
+        val state = _uiState.value
+        if (state.pendingBucketCapture) {
+            push(state.copy(pendingBucketCapture = false))
+        }
+    }
+
+    fun finalizeCaptureBuckets() {
+        val state = _uiState.value
+        push(state.copy(captureFinalized = true, statusMessage = "Capture finalized. You can now generate one output at a time."))
+        AppLogger.log(appContext, "capture", "finalizeCaptureBuckets")
+    }
+
     fun refreshSuggestionsFromVisibleText(visibleText: String) {
         val suggestions = formSuggestionEngine.suggestFromVisibleText(
             visibleText = visibleText,
@@ -305,6 +415,104 @@ class MainViewModel(
                         statusMessage = "Smoke test failed: ${t.message ?: t.javaClass.simpleName}. Use Share diagnostics / Export logs."
                     )
                 )
+            } finally {
+                generatePackInFlight.set(false)
+            }
+        }
+    }
+
+    enum class GenerateSingleType { ApplyDecision, ResumeHighlights, CoverLetter }
+
+    fun generateSingle(type: GenerateSingleType) {
+        val state = _uiState.value
+        if (state.url.isBlank()) {
+            push(state.copy(statusMessage = "Job URL is required."))
+            return
+        }
+        if (!state.captureFinalized) {
+            push(state.copy(statusMessage = "Finalize capture first (Job page → Finalize capture)."))
+            return
+        }
+
+        viewModelScope.launch {
+            if (!generatePackInFlight.compareAndSet(false, true)) {
+                push(_uiState.value.copy(statusMessage = "Another operation is already running."))
+                return@launch
+            }
+            val rt = Runtime.getRuntime()
+            val startJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+            val startNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+            try {
+                push(_uiState.value.copy(isGenerating = true, statusMessage = "Generating ${type.name}…"))
+
+                val effectiveJd = state.captureJdText.ifBlank {
+                    when {
+                        state.extractedPageText.isNotBlank() -> state.extractedPageText
+                        state.jdText.isNotBlank() -> state.jdText
+                        else -> ""
+                    }
+                }
+
+                val jdForGeneration = JobPageExtractor.stripInjectedStructuredMetadata(effectiveJd)
+
+                val detectedCompany = state.captureCompanyRoleText
+                    .ifBlank { state.company }
+                    .ifBlank { JobPageExtractor.detectCompany(effectiveJd) }
+                    .ifBlank { state.detectedCompany }
+                    .ifBlank { "Unknown Company" }
+
+                val detectedRole = state.captureCompanyRoleText
+                    .ifBlank { state.role }
+                    .ifBlank { JobPageExtractor.detectRole(effectiveJd) }
+                    .ifBlank { state.detectedRole }
+                    .ifBlank { "Unknown Role" }
+
+                val salaryHint = state.captureCompensationText.ifBlank { state.detectedSalaryHint }
+
+                val resumeSummary = state.profile.resumeTextSnapshot.ifBlank { state.profile.strengths }.take(6000)
+
+                val jobInput = JobInput(
+                    company = detectedCompany,
+                    role = detectedRole,
+                    url = state.url.trim(),
+                    jdText = jdForGeneration,
+                    salaryHint = salaryHint,
+                    jobSpecificNotes = listOf(
+                        state.jobExtraContext.trim(),
+                        state.captureCompanyInfoText.trim(),
+                        state.captureMiscText.trim()
+                    ).filter { it.isNotBlank() }.joinToString("\n\n").take(4000),
+                    resumeSummaryForPrompt = resumeSummary
+                )
+
+                AppLogger.log(
+                    appContext,
+                    "llm",
+                    "generateSingle type=${type.name} start javaUsedMB=$startJavaMb nativeMB=$startNativeMb jdLen=${jobInput.jdText.length}"
+                )
+
+                val out = withContext(Dispatchers.IO) {
+                    when (type) {
+                        GenerateSingleType.ApplyDecision -> llmEngine.suggestApplyDecision(jobInput, state.profile)
+                        GenerateSingleType.ResumeHighlights -> llmEngine.generateResumeHighlights(jobInput, state.profile)
+                        GenerateSingleType.CoverLetter -> llmEngine.generateCoverLetter(jobInput, state.profile)
+                    }
+                }
+
+                val endJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+                val endNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+                AppLogger.log(appContext, "llm", "generateSingle type=${type.name} done len=${out.length} javaUsedMB=$endJavaMb nativeMB=$endNativeMb")
+
+                val next = when (type) {
+                    GenerateSingleType.ApplyDecision -> _uiState.value.copy(statusMessage = "Apply decision: ${out.trim().take(40)}")
+                    GenerateSingleType.ResumeHighlights -> _uiState.value.copy(generatedResumeHighlights = out, statusMessage = "Resume highlights generated.")
+                    GenerateSingleType.CoverLetter -> _uiState.value.copy(generatedCoverLetter = out, statusMessage = "Cover letter generated.")
+                }
+                push(next.copy(isGenerating = false))
+            } catch (t: Throwable) {
+                CrashLogWriter.writeCaughtThrowable(appContext, "generateSingle-${type.name}", t)
+                AppLogger.log(appContext, "error", "generateSingle ${type.name} caught ${t.javaClass.simpleName}: ${t.message.orEmpty().take(200)}")
+                push(_uiState.value.copy(isGenerating = false, statusMessage = "Failed: ${t.message ?: t.javaClass.simpleName}"))
             } finally {
                 generatePackInFlight.set(false)
             }
@@ -598,6 +806,14 @@ class MainViewModel(
         val state = _uiState.value
         if (state.url.isBlank()) {
             push(state.copy(statusMessage = "Job URL is required."))
+            return
+        }
+        if (state.captureFinalized) {
+            push(
+                state.copy(
+                    statusMessage = "Step-by-step mode is active. Use Developer tools or the Results screen to generate one output at a time."
+                )
+            )
             return
         }
 
