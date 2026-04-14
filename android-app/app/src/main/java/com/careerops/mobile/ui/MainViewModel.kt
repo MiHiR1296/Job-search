@@ -607,6 +607,15 @@ class MainViewModel(
                 return@launch
             }
             try {
+                val rt = Runtime.getRuntime()
+                val startJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+                val startNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+                AppLogger.log(
+                    appContext,
+                    "generate",
+                    "generatePack start url=${state.url.take(200)} javaUsedMB=$startJavaMb nativeMB=$startNativeMb " +
+                        "hasExtracted=${state.extractedPageText.isNotBlank()} jdLen=${state.jdText.length} extractedLen=${state.extractedPageText.length}"
+                )
                 push(state.copy(isGenerating = true, statusMessage = "Generating pack..."))
 
                 val effectiveJd = when {
@@ -614,11 +623,18 @@ class MainViewModel(
                     state.jdText.isNotBlank() -> state.jdText
                     else -> ""
                 }
+                AppLogger.log(appContext, "generate", "effectiveJd len=${effectiveJd.length} jsonLdLen=${state.lastJsonLdRaw.length}")
 
+                AppLogger.log(appContext, "generate", "structuredExtract start")
                 val structuredLlm: StructuredJobDraft? = withContext(Dispatchers.IO) {
                     if (effectiveJd.isBlank()) null
                     else llmEngine.extractStructuredJobFromJd(effectiveJd, state.profile)
                 }
+                AppLogger.log(
+                    appContext,
+                    "generate",
+                    "structuredExtract done company=${structuredLlm?.company.orEmpty().take(40)} role=${structuredLlm?.role.orEmpty().take(40)} salaryRawLen=${structuredLlm?.salaryRaw?.length ?: 0}"
+                )
 
                 val structuredFromHeader = JobPageExtractor.parseInjectedStructuredMetadataHeader(effectiveJd)
                 val structuredFromJsonLd = JobPageExtractor.structuredDraftFromJsonLd(state.lastJsonLdRaw)
@@ -671,25 +687,49 @@ class MainViewModel(
                     jobSpecificNotes = state.jobExtraContext.trim(),
                     resumeSummaryForPrompt = resumeSummary
                 )
+                AppLogger.log(
+                    appContext,
+                    "generate",
+                    "jobInput ready company=${jobInput.company.take(40)} role=${jobInput.role.take(40)} jdLen=${jobInput.jdText.length} resumeCtxLen=${jobInput.resumeSummaryForPrompt.length}"
+                )
 
                 val insight = scoringEngine.score(jobInput, state.profile)
 
+                AppLogger.log(appContext, "generate", "repository.generatePack start")
                 val pack: ApplicationPack = withContext(Dispatchers.IO) {
                     repository.generatePack(jobInput, state.profile)
                 }
+                AppLogger.log(appContext, "generate", "repository.generatePack done folder=${pack.folderName}")
+
+                val beforeCoverJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+                val beforeCoverNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+                AppLogger.log(appContext, "llm", "coverLetter start javaUsedMB=$beforeCoverJavaMb nativeMB=$beforeCoverNativeMb")
                 val coverLetter = withContext(Dispatchers.IO) {
                     llmEngine.generateCoverLetter(jobInput, state.profile)
                 }
+                AppLogger.log(appContext, "llm", "coverLetter done len=${coverLetter.length}")
+
+                val beforeResJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+                val beforeResNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+                AppLogger.log(appContext, "llm", "resumeHighlights start javaUsedMB=$beforeResJavaMb nativeMB=$beforeResNativeMb")
                 val resumeHighlights = withContext(Dispatchers.IO) {
                     llmEngine.generateResumeHighlights(jobInput, state.profile)
                 }
+                AppLogger.log(appContext, "llm", "resumeHighlights done len=${resumeHighlights.length}")
+
+                val beforeDecJavaMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+                val beforeDecNativeMb = Debug.getNativeHeapAllocatedSize() / (1024 * 1024)
+                AppLogger.log(appContext, "llm", "applyDecision start javaUsedMB=$beforeDecJavaMb nativeMB=$beforeDecNativeMb")
                 val applyDecision = withContext(Dispatchers.IO) {
                     llmEngine.suggestApplyDecision(jobInput, state.profile)
                 }
+                AppLogger.log(appContext, "llm", "applyDecision done value=${applyDecision.take(30)}")
 
+                AppLogger.log(appContext, "generate", "writeGeneratedOutputs start")
                 withContext(Dispatchers.IO) {
                     writeGeneratedOutputs(pack.folderName, jobInput, coverLetter, resumeHighlights)
                 }
+                AppLogger.log(appContext, "generate", "writeGeneratedOutputs done")
 
                 push(
                     _uiState.value.copy(
@@ -713,6 +753,7 @@ class MainViewModel(
                 )
             } catch (t: Throwable) {
                 CrashLogWriter.writeCaughtThrowable(appContext, "generatePack", t)
+                AppLogger.log(appContext, "error", "generatePack caught ${t.javaClass.simpleName}: ${t.message.orEmpty().take(200)}")
                 push(
                     _uiState.value.copy(
                         isGenerating = false,
