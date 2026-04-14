@@ -3,12 +3,11 @@ package com.careerops.mobile.diagnostics
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.FileProvider
-import com.careerops.mobile.BuildConfig
 import java.io.File
 import java.io.PrintWriter
-import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,16 +64,38 @@ object CrashLogWriter {
 
     private fun headerBlock(context: Context): String {
         val rt = Runtime.getRuntime()
-        val sw = StringWriter()
-        sw.appendLine("Career Ops Mobile diagnostic")
-        sw.appendLine("versionName=${BuildConfig.VERSION_NAME}")
-        sw.appendLine("versionCode=${BuildConfig.VERSION_CODE}")
-        sw.appendLine("device=${Build.MANUFACTURER} ${Build.MODEL}")
-        sw.appendLine("sdk=${Build.VERSION.SDK_INT}")
-        sw.appendLine("maxMemoryMB=${rt.maxMemory() / (1024 * 1024)}")
-        sw.appendLine("totalMemoryMB=${rt.totalMemory() / (1024 * 1024)}")
-        sw.appendLine("freeMemoryMB=${rt.freeMemory() / (1024 * 1024)}")
-        return sw.toString().trimEnd()
+        val (versionName, versionCode) = readAppVersion(context)
+        return buildString {
+            appendLine("Career Ops Mobile diagnostic")
+            appendLine("versionName=$versionName")
+            appendLine("versionCode=$versionCode")
+            appendLine("device=${Build.MANUFACTURER} ${Build.MODEL}")
+            appendLine("sdk=${Build.VERSION.SDK_INT}")
+            appendLine("maxMemoryMB=${rt.maxMemory() / (1024 * 1024)}")
+            appendLine("totalMemoryMB=${rt.totalMemory() / (1024 * 1024)}")
+            appendLine("freeMemoryMB=${rt.freeMemory() / (1024 * 1024)}")
+        }.trimEnd()
+    }
+
+    private fun readAppVersion(context: Context): Pair<String, String> {
+        return runCatching {
+            val pm = context.packageManager
+            val pkg = context.packageName
+            val p = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(pkg, 0)
+            }
+            val name = p.versionName ?: "unknown"
+            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                p.longVersionCode.toString()
+            } else {
+                @Suppress("DEPRECATION")
+                p.versionCode.toString()
+            }
+            name to code
+        }.getOrDefault("unknown" to "unknown")
     }
 
     private fun trimOldFiles(dir: File) {
