@@ -163,6 +163,19 @@ Debug APKs are signed with the **shared** keystore under `android-app/keystore/c
 
 **One-time migration:** If you already have the app installed from an **older** build that used the default debug key or a different machine key, Android will refuse the update. **Uninstall once**, then install a build from this setup; after that, in-place upgrades should work.
 
+## Diagnostics without USB (`adb logcat`)
+
+The app writes **Java/Kotlin** crash details to **private app storage** under `files/crash_logs/` (not visible in a normal file manager).
+
+- Open **☰ menu → AI setup** and tap **Share diagnostics** to open the system share sheet (email, Drive, WhatsApp “self”, etc.). The text includes **memory snapshot** plus the **latest** `crash_logs/*.txt` if one exists.
+- **Limitation:** if the process dies from **native code** (typical for JNI `SIGSEGV` / some OOM paths in native allocators), Android may kill the app **before** any Java handler runs — then there may be **no new crash file**. The share bundle still helps (device + memory line).
+
+### Emulator / PC-side reproduction (with logcat)
+
+1. Android Studio → **Device Manager** → create a **Virtual Device** with RAM similar to your phone (e.g. 6–8 GB).
+2. Run the app on the emulator; use **Logcat** filtered by `careerops` / `libc` / `DEBUG`.
+3. Reproduce generate-with-local-model; watch for **`Fatal signal`**, **`SIGSEGV`**, **`libllama`**, **`lowmemorykiller`**.
+
 ## Downloading the CI debug APK
 
 - **GitHub Releases (single “latest” row):** open [Releases](https://github.com/MiHiR1296/Job-search/releases) and use **Career Ops Mobile — Debug (latest)** (`debug-apk-latest`). Each push to `cursor/career-ops-india-78d5` rebuilds that release, uploads **`CareerOpsMobile-debug.apk`**, and **deletes older `debug-apk-*` dated releases** so the page stays clean.

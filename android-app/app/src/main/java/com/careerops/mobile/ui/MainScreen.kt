@@ -79,7 +79,8 @@ fun MainScreen(
     viewModel: MainViewModel,
     onPickResumeDocument: () -> Unit,
     onPickLocalModelFile: () -> Unit,
-    onOpenJobInCustomTab: (String) -> Unit
+    onOpenJobInCustomTab: (String) -> Unit,
+    onShareDiagnostics: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (!state.profile.onboardingCompleted) {
@@ -103,7 +104,8 @@ fun MainScreen(
         viewModel = viewModel,
         onPickResumeDocument = onPickResumeDocument,
         onPickLocalModelFile = onPickLocalModelFile,
-        onOpenJobInCustomTab = onOpenJobInCustomTab
+        onOpenJobInCustomTab = onOpenJobInCustomTab,
+        onShareDiagnostics = onShareDiagnostics
     )
 }
 
@@ -114,7 +116,8 @@ private fun CareerOpsMainShell(
     viewModel: MainViewModel,
     onPickResumeDocument: () -> Unit,
     onPickLocalModelFile: () -> Unit,
-    onOpenJobInCustomTab: (String) -> Unit
+    onOpenJobInCustomTab: (String) -> Unit,
+    onShareDiagnostics: () -> Unit
 ) {
     val context = LocalContext.current
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -328,7 +331,8 @@ private fun CareerOpsMainShell(
                         onApiKeyChange = viewModel::updateAiSetupApiKeyDraft,
                         onSave = viewModel::saveAiSetupDraftsToProfile,
                         onTestApi = viewModel::testApiConnection,
-                        onManualCaptureMode = viewModel::setManualCaptureMode
+                        onManualCaptureMode = viewModel::setManualCaptureMode,
+                        onShareDiagnostics = onShareDiagnostics
                     )
                     MainRoute.Profile -> OnboardingTab(
                         profile = state.profile,
@@ -356,7 +360,8 @@ private fun AiSetupTab(
     onApiKeyChange: (String) -> Unit,
     onSave: () -> Unit,
     onTestApi: () -> Unit,
-    onManualCaptureMode: (Boolean) -> Unit
+    onManualCaptureMode: (Boolean) -> Unit,
+    onShareDiagnostics: () -> Unit
 ) {
     val isApiMode = state.aiSetupModeDraft.equals("api", ignoreCase = true)
     Column(
@@ -513,6 +518,18 @@ private fun AiSetupTab(
             "ON = app waits for your Capture + Generate button (safer when login pages/ads appear first).",
             style = MaterialTheme.typography.bodySmall
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Diagnostics (no USB needed)", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            "If the app disappears with no message, it may be a native crash (not captured here). " +
+                "This still shares device memory info and any Java/Kotlin errors we did record.",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onShareDiagnostics, modifier = Modifier.fillMaxWidth()) {
+            Text("Share diagnostics (email / Drive / …)")
+        }
         Spacer(modifier = Modifier.height(12.dp))
         StatusMessageBox(state.statusMessage)
     }

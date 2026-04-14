@@ -1,5 +1,6 @@
 package com.careerops.mobile.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.careerops.mobile.data.ApplicationPack
@@ -14,6 +15,7 @@ import com.careerops.mobile.llm.LocalLlmEngine
 import com.careerops.mobile.llm.StubLocalLlmEngine
 import com.careerops.mobile.scoring.JobScoringEngine
 import com.careerops.mobile.scoring.SalaryNormalizer
+import com.careerops.mobile.diagnostics.CrashLogWriter
 import com.careerops.mobile.web.FormSuggestionEngine
 import com.careerops.mobile.web.JobPageExtractor
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +77,7 @@ data class MainUiState(
 )
 
 class MainViewModel(
+    private val appContext: Context,
     private val repository: PackRepository,
     private val profileStore: ProfileStore,
     private val llmEngine: LocalLlmEngine = StubLocalLlmEngine(),
@@ -571,13 +574,14 @@ class MainViewModel(
                     )
                 )
             } catch (t: Throwable) {
+                CrashLogWriter.writeCaughtThrowable(appContext, "generatePack", t)
                 push(
                     _uiState.value.copy(
                         isGenerating = false,
                         isAutoGenerating = false,
                         pendingAutoGenerateAfterExtraction = false,
                         pendingGenerateAfterManualCapture = false,
-                        statusMessage = "Generation failed: ${t.message ?: t.javaClass.simpleName}"
+                        statusMessage = "Generation failed: ${t.message ?: t.javaClass.simpleName}. Use AI Setup → Share diagnostics if you need a log file."
                     )
                 )
             } finally {

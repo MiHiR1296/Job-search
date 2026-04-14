@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.lifecycle.lifecycleScope
 import com.careerops.mobile.data.PackRepository
 import com.careerops.mobile.data.ProfileStore
+import com.careerops.mobile.diagnostics.CrashLogWriter
 import com.careerops.mobile.data.ResumeParser
 import com.careerops.mobile.ui.MainScreen
 import com.careerops.mobile.ui.MainViewModel
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels {
         MainViewModelFactory(
+            appContext = applicationContext,
             repository = PackRepository(applicationContext),
             profileStore = ProfileStore(applicationContext)
         )
@@ -85,7 +87,8 @@ class MainActivity : ComponentActivity() {
                     viewModel = viewModel,
                     onPickResumeDocument = ::openResumeDocumentPicker,
                     onPickLocalModelFile = ::openLocalModelFilePicker,
-                    onOpenJobInCustomTab = ::openJobUrlInCustomTab
+                    onOpenJobInCustomTab = ::openJobUrlInCustomTab,
+                    onShareDiagnostics = { CrashLogWriter.shareDiagnosticsBundle(this@MainActivity) }
                 )
             }
         }
