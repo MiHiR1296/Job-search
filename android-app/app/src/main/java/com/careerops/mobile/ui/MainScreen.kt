@@ -244,6 +244,7 @@ private fun CareerOpsMainShell(
                                 MainRoute.JobWebView -> "Job page"
                                 MainRoute.AiSetup -> "AI setup"
                                 MainRoute.Profile -> "Profile"
+                                MainRoute.DevTools -> "Developer tools"
                             }
                         )
                     },
@@ -856,7 +857,7 @@ private fun extractDisplayFileName(uriText: String): String {
 }
 
 @Composable
-private fun StatusMessageBox(message: String) {
+fun StatusMessageBox(message: String) {
     if (message.isBlank()) return
     Surface(
         modifier = Modifier.fillMaxWidth(),
