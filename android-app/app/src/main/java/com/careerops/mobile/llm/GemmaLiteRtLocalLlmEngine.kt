@@ -64,7 +64,7 @@ class GemmaLiteRtLocalLlmEngine(
             val sampler = SamplerConfig(
                 topK = 40,
                 topP = 0.9,
-                temperature = 0.3f
+                temperature = 0.3
             )
             val conversation = e.createConversation(
                 ConversationConfig(
