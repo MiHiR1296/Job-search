@@ -29,7 +29,21 @@ data class CandidateProfile(
     val localModelPath: String = "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
     val apiBaseUrl: String = "https://api.openai.com/v1",
     val apiModel: String = "gpt-4o-mini",
-    val apiKey: String = ""
+    val apiKey: String = "",
+
+    /**
+     * Developer overrides for prompts (optional). If blank, app defaults are used.
+     * These are intended for debugging/stability tuning on-device.
+     */
+    val promptApplyDecisionSystem: String = "",
+    val promptApplyDecisionUser: String = "",
+    val promptResumeHighlightsSystem: String = "",
+    val promptResumeHighlightsUser: String = "",
+    val promptCoverLetterSystem: String = "",
+    val promptCoverLetterUser: String = "",
+
+    /** Safety valve: cap streamed output chars collected from local models. */
+    val maxOutputChars: Int = 1800
 )
 
 /** Parsed job fields from JSON-LD and/or LLM (best-effort). */

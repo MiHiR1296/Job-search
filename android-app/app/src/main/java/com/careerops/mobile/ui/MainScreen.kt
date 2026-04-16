@@ -398,7 +398,15 @@ private fun CareerOpsMainShell(
                         onGenerateCoverLetter = { viewModel.generateSingle(MainViewModel.GenerateSingleType.CoverLetter) },
                         onPreviewDecisionPrompt = { viewModel.previewPrompts(MainViewModel.GenerateSingleType.ApplyDecision) },
                         onPreviewHighlightsPrompt = { viewModel.previewPrompts(MainViewModel.GenerateSingleType.ResumeHighlights) },
-                        onPreviewCoverPrompt = { viewModel.previewPrompts(MainViewModel.GenerateSingleType.CoverLetter) }
+                        onPreviewCoverPrompt = { viewModel.previewPrompts(MainViewModel.GenerateSingleType.CoverLetter) },
+                        onApplyDecisionSystemChange = viewModel::updateDevApplyDecisionSystemDraft,
+                        onApplyDecisionUserChange = viewModel::updateDevApplyDecisionUserDraft,
+                        onHighlightsSystemChange = viewModel::updateDevResumeHighlightsSystemDraft,
+                        onHighlightsUserChange = viewModel::updateDevResumeHighlightsUserDraft,
+                        onCoverSystemChange = viewModel::updateDevCoverLetterSystemDraft,
+                        onCoverUserChange = viewModel::updateDevCoverLetterUserDraft,
+                        onMaxOutputCharsChange = viewModel::updateDevMaxOutputCharsDraft,
+                        onSavePromptOverrides = viewModel::saveDevPromptOverridesToProfile
                     )
                 }
             }

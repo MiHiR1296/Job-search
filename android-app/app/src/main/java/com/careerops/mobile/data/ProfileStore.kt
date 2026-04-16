@@ -50,7 +50,14 @@ class ProfileStore(private val context: Context) {
             localModelPath = prefs[keys.localModelPath] ?: "/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf",
             apiBaseUrl = prefs[keys.apiBaseUrl] ?: "https://api.openai.com/v1",
             apiModel = prefs[keys.apiModel] ?: "gpt-4o-mini",
-            apiKey = if (decryptedApiKey.isNotBlank()) decryptedApiKey else (prefs[keys.apiKeyLegacy] ?: "")
+            apiKey = if (decryptedApiKey.isNotBlank()) decryptedApiKey else (prefs[keys.apiKeyLegacy] ?: ""),
+            promptApplyDecisionSystem = prefs[keys.promptApplyDecisionSystem] ?: "",
+            promptApplyDecisionUser = prefs[keys.promptApplyDecisionUser] ?: "",
+            promptResumeHighlightsSystem = prefs[keys.promptResumeHighlightsSystem] ?: "",
+            promptResumeHighlightsUser = prefs[keys.promptResumeHighlightsUser] ?: "",
+            promptCoverLetterSystem = prefs[keys.promptCoverLetterSystem] ?: "",
+            promptCoverLetterUser = prefs[keys.promptCoverLetterUser] ?: "",
+            maxOutputChars = prefs[keys.maxOutputChars] ?: 1800
         )
     }
 
@@ -85,6 +92,14 @@ class ProfileStore(private val context: Context) {
             prefs[keys.apiModel] = profile.apiModel
             prefs[keys.apiKeyEncrypted] = crypto.encrypt(profile.apiKey)
             prefs.remove(keys.apiKeyLegacy)
+
+            prefs[keys.promptApplyDecisionSystem] = profile.promptApplyDecisionSystem.take(20_000)
+            prefs[keys.promptApplyDecisionUser] = profile.promptApplyDecisionUser.take(40_000)
+            prefs[keys.promptResumeHighlightsSystem] = profile.promptResumeHighlightsSystem.take(20_000)
+            prefs[keys.promptResumeHighlightsUser] = profile.promptResumeHighlightsUser.take(40_000)
+            prefs[keys.promptCoverLetterSystem] = profile.promptCoverLetterSystem.take(20_000)
+            prefs[keys.promptCoverLetterUser] = profile.promptCoverLetterUser.take(40_000)
+            prefs[keys.maxOutputChars] = profile.maxOutputChars.coerceIn(200, 20_000)
         }
     }
 
@@ -118,5 +133,13 @@ class ProfileStore(private val context: Context) {
         val apiModel = stringPreferencesKey("api_model")
         val apiKeyLegacy = stringPreferencesKey("api_key")
         val apiKeyEncrypted = stringPreferencesKey("api_key_encrypted")
+
+        val promptApplyDecisionSystem = stringPreferencesKey("prompt_apply_decision_system")
+        val promptApplyDecisionUser = stringPreferencesKey("prompt_apply_decision_user")
+        val promptResumeHighlightsSystem = stringPreferencesKey("prompt_resume_highlights_system")
+        val promptResumeHighlightsUser = stringPreferencesKey("prompt_resume_highlights_user")
+        val promptCoverLetterSystem = stringPreferencesKey("prompt_cover_letter_system")
+        val promptCoverLetterUser = stringPreferencesKey("prompt_cover_letter_user")
+        val maxOutputChars = intPreferencesKey("max_output_chars")
     }
 }

@@ -27,6 +27,7 @@ class GemmaLiteRtLocalLlmEngine(
 ) : LocalLlmEngine {
 
     private val inferenceMutex = Mutex()
+    private class OutputLimitReached : RuntimeException()
 
     @Volatile
     private var engine: Engine? = null
@@ -74,41 +75,83 @@ class GemmaLiteRtLocalLlmEngine(
             )
             conversation.use { c ->
                 val sb = StringBuilder()
+                val limit = profile.maxOutputChars.coerceIn(200, 20_000)
                 // streaming is safest for long generations; we collect into a string
-                c.sendMessageAsync(user)
-                    .catch { /* swallow, caller handles fallback */ }
-                    .collect { msg -> sb.append(msg.toString()) }
-                sb.toString().trim()
+                try {
+                    c.sendMessageAsync(user)
+                        .catch { /* swallow, caller handles fallback */ }
+                        .collect { msg ->
+                            sb.append(msg.toString())
+                            if (sb.length >= limit) throw OutputLimitReached()
+                        }
+                } catch (_: OutputLimitReached) {
+                    // return partial output
+                }
+                sb.toString().take(limit).trim()
             }
         }
 
     override suspend fun generateCoverLetter(jobInput: JobInput, profile: CandidateProfile): String {
-        val system = "Write a short truthful cover letter. Under 200 words."
-        val user = """
+        val defaultSystem = "Write a short truthful cover letter. Under 200 words."
+        val defaultUser = """
             Company: ${jobInput.company}
             Role: ${jobInput.role}
             JD:
             ${jobInput.jdText.take(1800)}
         """.trimIndent()
+
+        val systemTemplate = profile.promptCoverLetterSystem.ifBlank { defaultSystem }
+        val userTemplate = profile.promptCoverLetterUser.ifBlank { defaultUser }
+        val context = buildString {
+            if (profile.careerMemory.isNotBlank()) appendLine(profile.careerMemory.take(5000))
+            if (jobInput.jobSpecificNotes.isNotBlank()) appendLine(jobInput.jobSpecificNotes.take(2000))
+            if (jobInput.resumeSummaryForPrompt.isNotBlank()) appendLine(jobInput.resumeSummaryForPrompt.take(4500))
+        }.toString().trim()
+        val vars = PromptTemplateRenderer.vars(
+            jobInput = jobInput,
+            profile = profile,
+            jdTruncated = jobInput.jdText.take(1800),
+            contextBlock = context
+        )
+        val system = PromptTemplateRenderer.render(systemTemplate, vars).trim()
+        val user = PromptTemplateRenderer.render(userTemplate, vars).trim()
+
         val out = runCatching { chatOnce(system, user, profile) }.getOrDefault("")
         return if (out.isNotBlank()) out else fallbackEngine.generateCoverLetter(jobInput, profile)
     }
 
     override suspend fun generateResumeHighlights(jobInput: JobInput, profile: CandidateProfile): String {
-        val system = "Return only 6-10 concise resume bullets."
-        val user = """
+        val defaultSystem = "Return only 6-10 concise resume bullets."
+        val defaultUser = """
             Role: ${jobInput.role}
             Company: ${jobInput.company}
             JD:
             ${jobInput.jdText.take(2200)}
         """.trimIndent()
+
+        val systemTemplate = profile.promptResumeHighlightsSystem.ifBlank { defaultSystem }
+        val userTemplate = profile.promptResumeHighlightsUser.ifBlank { defaultUser }
+        val context = buildString {
+            if (profile.careerMemory.isNotBlank()) appendLine(profile.careerMemory.take(5000))
+            if (jobInput.jobSpecificNotes.isNotBlank()) appendLine(jobInput.jobSpecificNotes.take(2000))
+            if (jobInput.resumeSummaryForPrompt.isNotBlank()) appendLine(jobInput.resumeSummaryForPrompt.take(4500))
+        }.toString().trim()
+        val vars = PromptTemplateRenderer.vars(
+            jobInput = jobInput,
+            profile = profile,
+            jdTruncated = jobInput.jdText.take(2200),
+            contextBlock = context
+        )
+        val system = PromptTemplateRenderer.render(systemTemplate, vars).trim()
+        val user = PromptTemplateRenderer.render(userTemplate, vars).trim()
+
         val out = runCatching { chatOnce(system, user, profile) }.getOrDefault("")
         return if (out.isNotBlank()) out else fallbackEngine.generateResumeHighlights(jobInput, profile)
     }
 
     override suspend fun suggestApplyDecision(jobInput: JobInput, profile: CandidateProfile): String {
-        val system = "Choose one label only: Strong Apply, Apply, Review, Skip."
-        val user = """
+        val defaultSystem = "Choose one label only: Strong Apply, Apply, Review, Skip."
+        val defaultUser = """
             Allowed labels: Strong Apply, Apply, Review, Skip.
             Role: ${jobInput.role}
             Company: ${jobInput.company}
@@ -118,6 +161,23 @@ class GemmaLiteRtLocalLlmEngine(
             Candidate strengths: ${profile.strengths}
             Respond with one label only.
         """.trimIndent()
+
+        val systemTemplate = profile.promptApplyDecisionSystem.ifBlank { defaultSystem }
+        val userTemplate = profile.promptApplyDecisionUser.ifBlank { defaultUser }
+        val context = buildString {
+            if (profile.careerMemory.isNotBlank()) appendLine(profile.careerMemory.take(3500))
+            if (jobInput.jobSpecificNotes.isNotBlank()) appendLine(jobInput.jobSpecificNotes.take(1200))
+            if (jobInput.resumeSummaryForPrompt.isNotBlank()) appendLine(jobInput.resumeSummaryForPrompt.take(2500))
+        }.toString().trim()
+        val vars = PromptTemplateRenderer.vars(
+            jobInput = jobInput,
+            profile = profile,
+            jdTruncated = jobInput.jdText.take(1400),
+            contextBlock = context
+        )
+        val system = PromptTemplateRenderer.render(systemTemplate, vars).trim()
+        val user = PromptTemplateRenderer.render(userTemplate, vars).trim()
+
         val out = runCatching { chatOnce(system, user, profile) }.getOrDefault("").trim()
         if (out.contains("strong apply", ignoreCase = true)) return "Strong Apply"
         if (out.contains("apply", ignoreCase = true)) return "Apply"

@@ -33,7 +33,15 @@ fun DeveloperToolsTab(
     onGenerateCoverLetter: () -> Unit,
     onPreviewDecisionPrompt: () -> Unit,
     onPreviewHighlightsPrompt: () -> Unit,
-    onPreviewCoverPrompt: () -> Unit
+    onPreviewCoverPrompt: () -> Unit,
+    onApplyDecisionSystemChange: (String) -> Unit,
+    onApplyDecisionUserChange: (String) -> Unit,
+    onHighlightsSystemChange: (String) -> Unit,
+    onHighlightsUserChange: (String) -> Unit,
+    onCoverSystemChange: (String) -> Unit,
+    onCoverUserChange: (String) -> Unit,
+    onMaxOutputCharsChange: (String) -> Unit,
+    onSavePromptOverrides: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -116,6 +124,80 @@ fun DeveloperToolsTab(
                 Spacer(modifier = Modifier.height(6.dp))
                 Text("USER", style = MaterialTheme.typography.labelSmall)
                 StatusMessageBox(state.devPromptPreviewUser)
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+            Text("Prompt overrides (saved)", style = MaterialTheme.typography.titleSmall)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "Edit and Save to override prompts used by the generator (for debugging/stability). Leave blank to use defaults.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedTextField(
+                value = state.devMaxOutputCharsDraft,
+                onValueChange = onMaxOutputCharsChange,
+                label = { Text("Max output chars (safety cap)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text("Apply decision", style = MaterialTheme.typography.labelLarge)
+            OutlinedTextField(
+                value = state.devApplyDecisionSystemDraft,
+                onValueChange = onApplyDecisionSystemChange,
+                label = { Text("System") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.devApplyDecisionUserDraft,
+                onValueChange = onApplyDecisionUserChange,
+                label = { Text("User template") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Text("Resume highlights", style = MaterialTheme.typography.labelLarge)
+            OutlinedTextField(
+                value = state.devResumeHighlightsSystemDraft,
+                onValueChange = onHighlightsSystemChange,
+                label = { Text("System") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.devResumeHighlightsUserDraft,
+                onValueChange = onHighlightsUserChange,
+                label = { Text("User template") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Text("Cover letter", style = MaterialTheme.typography.labelLarge)
+            OutlinedTextField(
+                value = state.devCoverLetterSystemDraft,
+                onValueChange = onCoverSystemChange,
+                label = { Text("System") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.devCoverLetterUserDraft,
+                onValueChange = onCoverUserChange,
+                label = { Text("User template") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(onClick = onSavePromptOverrides, modifier = Modifier.fillMaxWidth()) {
+                Text("Save prompt overrides")
             }
 
             Spacer(modifier = Modifier.height(16.dp))

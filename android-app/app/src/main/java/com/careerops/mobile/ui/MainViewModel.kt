@@ -83,6 +83,13 @@ data class MainUiState(
     val devPromptPreviewTitle: String = "",
     val devPromptPreviewSystem: String = "",
     val devPromptPreviewUser: String = "",
+    val devApplyDecisionSystemDraft: String = "",
+    val devApplyDecisionUserDraft: String = "",
+    val devResumeHighlightsSystemDraft: String = "",
+    val devResumeHighlightsUserDraft: String = "",
+    val devCoverLetterSystemDraft: String = "",
+    val devCoverLetterUserDraft: String = "",
+    val devMaxOutputCharsDraft: String = "1800",
     val captureBucketSelected: CaptureBucket = CaptureBucket.JobDescription,
     val captureAppendMode: Boolean = true,
     val captureCompanyRoleText: String = "",
@@ -139,6 +146,7 @@ class MainViewModel(
             profileStore.profileFlow.collect { profile ->
                 push(_uiState.value.copy(profile = profile))
                 syncAiDraftsFromProfile(profile)
+                syncDevPromptDraftsFromProfile(profile)
             }
         }
     }
@@ -584,7 +592,7 @@ class MainViewModel(
     ): Pair<String, String> {
         return when (type) {
             GenerateSingleType.CoverLetter -> {
-                val system = """
+                val defaultSystem = """
                     You write tailored, truthful cover letters for job applications in India and globally.
                     Rules:
                     - Use the exact Company and Role strings provided in the user message (never write "Unknown Company" or placeholders if real names are given).
@@ -592,7 +600,7 @@ class MainViewModel(
                     - Tie at least one concrete phrase from the candidate achievements or resume excerpts to a JD theme when possible.
                     - Plain professional English, under 240 words, no salary negotiation, no invented employers or degrees.
                 """.trimIndent()
-                val user = buildString {
+                val defaultUser = buildString {
                     appendLine("Company: ${jobInput.company}")
                     appendLine("Role: ${jobInput.role}")
                     appendLine("URL: ${jobInput.url}")
@@ -605,6 +613,11 @@ class MainViewModel(
                     appendLine("Target role: ${profile.targetRole}")
                     appendLine("Strengths: ${profile.strengths}")
                     appendLine("Achievements: ${profile.achievements}")
+                }.toString().trim()
+
+                val systemTemplate = profile.promptCoverLetterSystem.ifBlank { defaultSystem }
+                val userTemplate = profile.promptCoverLetterUser.ifBlank { defaultUser }
+                val contextBlock = buildString {
                     if (profile.careerMemory.isNotBlank()) {
                         appendLine("Long-term career memory:")
                         appendLine(profile.careerMemory.take(5000))
@@ -618,14 +631,22 @@ class MainViewModel(
                         appendLine(jobInput.resumeSummaryForPrompt.take(4500))
                     }
                 }.toString().trim()
+                val vars = com.careerops.mobile.llm.PromptTemplateRenderer.vars(
+                    jobInput = jobInput,
+                    profile = profile,
+                    jdTruncated = jobInput.jdText.take(1800),
+                    contextBlock = contextBlock
+                )
+                val system = com.careerops.mobile.llm.PromptTemplateRenderer.render(systemTemplate, vars).trim()
+                val user = com.careerops.mobile.llm.PromptTemplateRenderer.render(userTemplate, vars).trim()
                 system to user
             }
             GenerateSingleType.ResumeHighlights -> {
-                val system = """
+                val defaultSystem = """
                     Produce ATS-friendly bullet points only for the listed role and company.
                     Never include metadata markers or "---" sections. Map bullets to JD themes where evidence exists in the profile.
                 """.trimIndent()
-                val user = buildString {
+                val defaultUser = buildString {
                     appendLine("Job role: ${jobInput.role}")
                     appendLine("Company: ${jobInput.company}")
                     appendLine("JD:")
@@ -639,16 +660,31 @@ class MainViewModel(
                     appendLine()
                     appendLine("Return 6-10 bullets, each short and action-focused.")
                 }.toString().trim()
+                val systemTemplate = profile.promptResumeHighlightsSystem.ifBlank { defaultSystem }
+                val userTemplate = profile.promptResumeHighlightsUser.ifBlank { defaultUser }
+                val contextBlock = buildString {
+                    if (profile.careerMemory.isNotBlank()) appendLine(profile.careerMemory.take(5000))
+                    if (jobInput.jobSpecificNotes.isNotBlank()) appendLine(jobInput.jobSpecificNotes.take(2000))
+                    if (jobInput.resumeSummaryForPrompt.isNotBlank()) appendLine(jobInput.resumeSummaryForPrompt.take(4500))
+                }.toString().trim()
+                val vars = com.careerops.mobile.llm.PromptTemplateRenderer.vars(
+                    jobInput = jobInput,
+                    profile = profile,
+                    jdTruncated = jobInput.jdText.take(2600),
+                    contextBlock = contextBlock
+                )
+                val system = com.careerops.mobile.llm.PromptTemplateRenderer.render(systemTemplate, vars).trim()
+                val user = com.careerops.mobile.llm.PromptTemplateRenderer.render(userTemplate, vars).trim()
                 system to user
             }
             GenerateSingleType.ApplyDecision -> {
-                val system = "Classify job fit using one label only from the allowed set."
-                val user = buildString {
+                val defaultSystem = "Classify job fit using one label only from the allowed set."
+                val defaultUser = buildString {
                     appendLine("Allowed labels: Strong Apply, Apply, Review, Skip.")
                     appendLine("Job role: ${jobInput.role}")
                     appendLine("Company: ${jobInput.company}")
                     appendLine("JD:")
-                    appendLine(jobInput.jdText.take(2800))
+                    appendLine(jobInput.jdText.take(1400))
                     appendLine()
                     appendLine("Candidate target role: ${profile.targetRole}")
                     appendLine("Candidate strengths: ${profile.strengths}")
@@ -657,6 +693,21 @@ class MainViewModel(
                     appendLine()
                     appendLine("Respond with one label only.")
                 }.toString().trim()
+                val systemTemplate = profile.promptApplyDecisionSystem.ifBlank { defaultSystem }
+                val userTemplate = profile.promptApplyDecisionUser.ifBlank { defaultUser }
+                val contextBlock = buildString {
+                    if (profile.careerMemory.isNotBlank()) appendLine(profile.careerMemory.take(3500))
+                    if (jobInput.jobSpecificNotes.isNotBlank()) appendLine(jobInput.jobSpecificNotes.take(1200))
+                    if (jobInput.resumeSummaryForPrompt.isNotBlank()) appendLine(jobInput.resumeSummaryForPrompt.take(2500))
+                }.toString().trim()
+                val vars = com.careerops.mobile.llm.PromptTemplateRenderer.vars(
+                    jobInput = jobInput,
+                    profile = profile,
+                    jdTruncated = jobInput.jdText.take(1400),
+                    contextBlock = contextBlock
+                )
+                val system = com.careerops.mobile.llm.PromptTemplateRenderer.render(systemTemplate, vars).trim()
+                val user = com.careerops.mobile.llm.PromptTemplateRenderer.render(userTemplate, vars).trim()
                 system to user
             }
         }
@@ -668,6 +719,32 @@ class MainViewModel(
 
     fun updateDevChatPrompt(value: String) {
         push(_uiState.value.copy(devChatPrompt = value))
+    }
+
+    fun updateDevApplyDecisionSystemDraft(value: String) = push(_uiState.value.copy(devApplyDecisionSystemDraft = value))
+    fun updateDevApplyDecisionUserDraft(value: String) = push(_uiState.value.copy(devApplyDecisionUserDraft = value))
+    fun updateDevResumeHighlightsSystemDraft(value: String) = push(_uiState.value.copy(devResumeHighlightsSystemDraft = value))
+    fun updateDevResumeHighlightsUserDraft(value: String) = push(_uiState.value.copy(devResumeHighlightsUserDraft = value))
+    fun updateDevCoverLetterSystemDraft(value: String) = push(_uiState.value.copy(devCoverLetterSystemDraft = value))
+    fun updateDevCoverLetterUserDraft(value: String) = push(_uiState.value.copy(devCoverLetterUserDraft = value))
+    fun updateDevMaxOutputCharsDraft(value: String) = push(_uiState.value.copy(devMaxOutputCharsDraft = value))
+
+    fun saveDevPromptOverridesToProfile() {
+        val state = _uiState.value
+        val maxChars = state.devMaxOutputCharsDraft.trim().toIntOrNull()?.coerceIn(200, 20_000) ?: state.profile.maxOutputChars
+        val updated = state.profile.copy(
+            promptApplyDecisionSystem = state.devApplyDecisionSystemDraft.trim(),
+            promptApplyDecisionUser = state.devApplyDecisionUserDraft.trim(),
+            promptResumeHighlightsSystem = state.devResumeHighlightsSystemDraft.trim(),
+            promptResumeHighlightsUser = state.devResumeHighlightsUserDraft.trim(),
+            promptCoverLetterSystem = state.devCoverLetterSystemDraft.trim(),
+            promptCoverLetterUser = state.devCoverLetterUserDraft.trim(),
+            maxOutputChars = maxChars
+        )
+        viewModelScope.launch {
+            profileStore.saveProfile(updated)
+            push(_uiState.value.copy(statusMessage = "Saved prompt overrides (dev)."))
+        }
     }
 
     fun runDevChat() {
@@ -1214,6 +1291,20 @@ class MainViewModel(
                 aiSetupApiBaseUrlDraft = profile.apiBaseUrl,
                 aiSetupApiModelDraft = profile.apiModel,
                 aiSetupApiKeyDraft = profile.apiKey
+            )
+        )
+    }
+
+    private fun syncDevPromptDraftsFromProfile(profile: CandidateProfile) {
+        push(
+            _uiState.value.copy(
+                devApplyDecisionSystemDraft = profile.promptApplyDecisionSystem,
+                devApplyDecisionUserDraft = profile.promptApplyDecisionUser,
+                devResumeHighlightsSystemDraft = profile.promptResumeHighlightsSystem,
+                devResumeHighlightsUserDraft = profile.promptResumeHighlightsUser,
+                devCoverLetterSystemDraft = profile.promptCoverLetterSystem,
+                devCoverLetterUserDraft = profile.promptCoverLetterUser,
+                devMaxOutputCharsDraft = profile.maxOutputChars.toString()
             )
         )
     }

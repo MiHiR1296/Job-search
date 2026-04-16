@@ -24,7 +24,7 @@ class LlamaCppLocalLlmEngine(
     private val inferenceMutex = Mutex()
 
     override suspend fun generateCoverLetter(jobInput: JobInput, profile: CandidateProfile): String {
-        val system = """
+        val defaultSystem = """
             You write tailored, truthful cover letters for job applications in India and globally.
             Rules:
             - Use the exact Company and Role strings provided in the user message (never write "Unknown Company" or placeholders if real names are given).
@@ -33,7 +33,7 @@ class LlamaCppLocalLlmEngine(
             - Plain professional English, under 240 words, no salary negotiation, no invented employers or degrees.
         """.trimIndent()
 
-        val user = buildString {
+        val defaultUser = buildString {
             appendLine("Company: ${jobInput.company}")
             appendLine("Role: ${jobInput.role}")
             appendLine("URL: ${jobInput.url}")
@@ -49,17 +49,29 @@ class LlamaCppLocalLlmEngine(
             append(contextBlock(jobInput, profile))
         }.toString()
 
+        val systemTemplate = profile.promptCoverLetterSystem.ifBlank { defaultSystem }
+        val userTemplate = profile.promptCoverLetterUser.ifBlank { defaultUser }
+        val context = contextBlock(jobInput, profile)
+        val vars = PromptTemplateRenderer.vars(
+            jobInput = jobInput,
+            profile = profile,
+            jdTruncated = jobInput.jdText.take(JD_CHARS_COVER),
+            contextBlock = context
+        )
+        val system = PromptTemplateRenderer.render(systemTemplate, vars).trim()
+        val user = PromptTemplateRenderer.render(userTemplate, vars).trim()
+
         val local = generateWithLocalModel(system, user, profile)
         return if (local.isNotBlank()) local else fallbackEngine.generateCoverLetter(jobInput, profile)
     }
 
     override suspend fun generateResumeHighlights(jobInput: JobInput, profile: CandidateProfile): String {
-        val system = """
+        val defaultSystem = """
             Produce ATS-friendly bullet points only for the listed role and company.
             Never include metadata markers or "---" sections. Map bullets to JD themes where evidence exists in the profile.
         """.trimIndent()
 
-        val user = buildString {
+        val defaultUser = buildString {
             appendLine("Job role: ${jobInput.role}")
             appendLine("Company: ${jobInput.company}")
             appendLine("JD:")
@@ -75,13 +87,25 @@ class LlamaCppLocalLlmEngine(
             appendLine("Return 6-10 bullets, each short and action-focused.")
         }.toString()
 
+        val systemTemplate = profile.promptResumeHighlightsSystem.ifBlank { defaultSystem }
+        val userTemplate = profile.promptResumeHighlightsUser.ifBlank { defaultUser }
+        val context = contextBlock(jobInput, profile)
+        val vars = PromptTemplateRenderer.vars(
+            jobInput = jobInput,
+            profile = profile,
+            jdTruncated = jobInput.jdText.take(JD_CHARS_RESUME),
+            contextBlock = context
+        )
+        val system = PromptTemplateRenderer.render(systemTemplate, vars).trim()
+        val user = PromptTemplateRenderer.render(userTemplate, vars).trim()
+
         val local = generateWithLocalModel(system, user, profile)
         return if (local.isNotBlank()) local else fallbackEngine.generateResumeHighlights(jobInput, profile)
     }
 
     override suspend fun suggestApplyDecision(jobInput: JobInput, profile: CandidateProfile): String {
-        val system = "Classify job fit using one label only from the allowed set."
-        val user = buildString {
+        val defaultSystem = "Classify job fit using one label only from the allowed set."
+        val defaultUser = buildString {
             appendLine("Allowed labels: Strong Apply, Apply, Review, Skip.")
             appendLine("Job role: ${jobInput.role}")
             appendLine("Company: ${jobInput.company}")
@@ -96,6 +120,18 @@ class LlamaCppLocalLlmEngine(
             appendLine()
             appendLine("Respond with one label only.")
         }.toString()
+
+        val systemTemplate = profile.promptApplyDecisionSystem.ifBlank { defaultSystem }
+        val userTemplate = profile.promptApplyDecisionUser.ifBlank { defaultUser }
+        val context = contextBlock(jobInput, profile)
+        val vars = PromptTemplateRenderer.vars(
+            jobInput = jobInput,
+            profile = profile,
+            jdTruncated = jobInput.jdText.take(JD_CHARS_DECISION),
+            contextBlock = context
+        )
+        val system = PromptTemplateRenderer.render(systemTemplate, vars).trim()
+        val user = PromptTemplateRenderer.render(userTemplate, vars).trim()
 
         val local = normalizeDecision(generateWithLocalModel(system, user, profile))
         return if (local == "Review") fallbackEngine.suggestApplyDecision(jobInput, profile) else local
@@ -198,7 +234,7 @@ class LlamaCppLocalLlmEngine(
                 result = runCatching { engine.generate(shortPrompt).trim() }.getOrDefault("")
                 if (sanitize) result = sanitizeModelOutput(result)
             }
-            result
+            result.take(profile.maxOutputChars.coerceIn(200, 20_000))
         }
     }
 
