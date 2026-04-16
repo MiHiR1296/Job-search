@@ -1,0 +1,23 @@
+config/profile.yml
+portals.yml
+cv.md
+output/
+reports/
+node_modules/
+.DS_Store
+tools/autofill/profile.autofill.json
+tools/autofill/generated-loader.js
+/mobile/
+/android-sdk/
+android-app/app/src/main/assets/private/
+
+# Android local build machine state
+android-app/local.properties
+android-app/**/build/
+android-app/.gradle/
+
+# Local JDK for builds (if used)
+.local-jdk/
+
+# APKs are distributed via CI artifacts / Releases, not committed
+apk/*.apk

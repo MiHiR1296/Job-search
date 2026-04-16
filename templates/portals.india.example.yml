@@ -1,0 +1,144 @@
+title_filter:
+  positive:
+    - "Software Engineer"
+    - "Backend Engineer"
+    - "Senior Software Engineer"
+    - "SDE 2"
+    - "SDE II"
+    - "Platform Engineer"
+    - "Full Stack Engineer"
+    - "DevOps Engineer"
+    - "Data Engineer"
+    - "Machine Learning Engineer"
+    - "Solutions Engineer"
+  negative:
+    - "Intern"
+    - "Apprentice"
+    - "Campus"
+    - "BPO"
+    - "Voice Process"
+    - "Telecaller"
+    - "Field Sales"
+    - "Commission Only"
+  seniority_boost:
+    - "Senior"
+    - "Lead"
+    - "Staff"
+    - "Principal"
+
+search_queries:
+  - name: Naukri - Backend Bengaluru
+    query: 'site:naukri.com "Backend Engineer" "Bengaluru"'
+    enabled: true
+
+  - name: Naukri - Senior Software Engineer India
+    query: 'site:naukri.com "Senior Software Engineer" "India"'
+    enabled: true
+
+  - name: Instahyre - SDE 2 Remote India
+    query: 'site:instahyre.com "SDE 2" "Remote" "India"'
+    enabled: true
+
+  - name: LinkedIn - Platform Engineer India
+    query: 'site:linkedin.com/jobs "Platform Engineer" "India"'
+    enabled: true
+
+  - name: Cutshort - Full Stack India
+    query: 'site:cutshort.io "Full Stack Engineer" "India"'
+    enabled: true
+
+  - name: Hirist - Backend Engineer
+    query: 'site:hirist.tech "Backend Engineer"'
+    enabled: true
+
+  - name: Wellfound - India startups engineering
+    query: 'site:wellfound.com "India" "Software Engineer" startup'
+    enabled: true
+
+  - name: Foundit - Java backend
+    query: 'site:foundit.in "Java Backend Engineer"'
+    enabled: true
+
+  - name: IIMJobs - Engineering manager and senior IC
+    query: 'site:iimjobs.com "Engineering" "India"'
+    enabled: true
+
+tracked_companies:
+  - name: Flipkart
+    careers_url: https://www.flipkartcareers.com
+    scan_method: websearch
+    scan_query: 'site:flipkartcareers.com "Software Engineer"'
+    enabled: true
+
+  - name: Swiggy
+    careers_url: https://careers.swiggy.com
+    scan_method: websearch
+    scan_query: 'site:careers.swiggy.com "Engineer"'
+    enabled: true
+
+  - name: Zomato
+    careers_url: https://www.zomato.com/careers
+    scan_method: websearch
+    scan_query: 'site:zomato.com/careers "Engineer"'
+    enabled: true
+
+  - name: Razorpay
+    careers_url: https://razorpay.com/jobs/
+    scan_method: websearch
+    scan_query: 'site:razorpay.com/jobs "Engineer"'
+    enabled: true
+
+  - name: PhonePe
+    careers_url: https://www.phonepe.com/careers/
+    scan_method: websearch
+    scan_query: 'site:phonepe.com/careers "Engineer"'
+    enabled: true
+
+  - name: Freshworks
+    careers_url: https://www.freshworks.com/company/careers/
+    scan_method: websearch
+    scan_query: 'site:freshworks.com/company/careers "Engineer"'
+    enabled: true
+
+  - name: Zoho
+    careers_url: https://careers.zohocorp.com
+    scan_method: websearch
+    scan_query: 'site:careers.zohocorp.com "Engineer"'
+    enabled: true
+
+  - name: BrowserStack
+    careers_url: https://www.browserstack.com/careers
+    scan_method: websearch
+    scan_query: 'site:browserstack.com/careers "Engineer"'
+    enabled: true
+
+  - name: CRED
+    careers_url: https://careers.cred.club
+    scan_method: websearch
+    scan_query: 'site:careers.cred.club "Engineer"'
+    enabled: true
+
+  - name: Paytm
+    careers_url: https://paytm.com/careers/
+    scan_method: websearch
+    scan_query: 'site:paytm.com/careers "Engineer"'
+    enabled: true
+
+  - name: Meesho
+    careers_url: https://careers.meesho.com
+    scan_method: websearch
+    scan_query: 'site:careers.meesho.com "Engineer"'
+    enabled: true
+
+  - name: Postman
+    careers_url: https://www.postman.com/company/careers/
+    scan_method: websearch
+    scan_query: 'site:postman.com/company/careers "Engineer"'
+    enabled: true
+
+  - name: Atlassian India
+    careers_url: https://www.atlassian.com/company/careers
+    scan_method: websearch
+    scan_query: 'site:atlassian.com/company/careers "India" "Engineer"'
+    enabled: true
+

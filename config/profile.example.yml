@@ -1,0 +1,79 @@
+candidate:
+  full_name: "Your Name"
+  email: "you@example.com"
+  phone: "+91-XXXXXXXXXX"
+  location: "Bengaluru, Karnataka"
+  linkedin: "linkedin.com/in/your-handle"
+  github: "github.com/your-handle"
+  portfolio_url: "https://your-portfolio.dev"
+
+target_roles:
+  primary:
+    - "Senior Software Engineer"
+    - "Backend Engineer"
+  secondary:
+    - "Platform Engineer"
+    - "Solutions Engineer"
+  archetypes:
+    - name: "Backend Engineering"
+      level: "SDE-2/SDE-3"
+      fit: "primary"
+    - name: "Platform / Infra"
+      level: "Senior"
+      fit: "secondary"
+    - name: "Applied AI Engineering"
+      level: "Mid-Senior"
+      fit: "adjacent"
+
+preferences:
+  work_mode:
+    - "Remote"
+    - "Hybrid"
+  preferred_cities:
+    - "Bengaluru"
+    - "Hyderabad"
+    - "Pune"
+    - "Delhi NCR"
+    - "Mumbai"
+  company_types:
+    - "Product"
+    - "SaaS"
+    - "Startup"
+    - "Global Capability Center"
+  avoid:
+    - "Pure support role"
+    - "Night-shift only"
+
+experience:
+  years_total: 5
+  current_title: "Software Engineer"
+  notice_period_days: 60
+  top_skills:
+    - "Python"
+    - "Java"
+    - "System Design"
+    - "AWS"
+    - "SQL"
+  achievements:
+    - "Reduced API latency by 35%"
+    - "Led migration serving 1M+ users"
+
+compensation:
+  currency: "INR"
+  current_ctc_lpa: 18
+  expected_ctc_lpa: 28
+  minimum_acceptable_lpa: 24
+  notes: "Open to performance bonus / ESOP heavy mix if growth is strong"
+
+constraints:
+  sponsorship_required: false
+  relocation_possible: true
+  max_notice_buyout_months: 2
+
+narrative:
+  headline: "Backend engineer building reliable systems at scale"
+  career_story: "Hands-on engineer with product mindset, moving toward high-impact senior backend roles."
+  superpowers:
+    - "Shipping production systems quickly"
+    - "Owning reliability and observability"
+    - "Cross-team communication"

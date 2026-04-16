@@ -1,0 +1,82 @@
+scoring:
+  scale: "0.0 to 5.0"
+  apply_threshold: 3.6
+  strong_apply_threshold: 4.1
+
+weights:
+  role_fit: 0.24
+  skills_match: 0.20
+  compensation_fit: 0.14
+  growth_learning: 0.14
+  hiring_signal: 0.10
+  work_mode_location: 0.08
+  brand_stability: 0.05
+  risk_red_flags: 0.05
+
+dimensions:
+  role_fit:
+    prompt: "How closely does the JD match target role and seniority?"
+    high_score_signals:
+      - "Title aligns with primary/secondary target roles"
+      - "Responsibilities match profile strengths"
+      - "Scope is meaningful, not mostly support"
+
+  skills_match:
+    prompt: "How strong is skill overlap vs profile and CV proof points?"
+    high_score_signals:
+      - "Core stack overlap >= 70%"
+      - "Relevant domain/problem familiarity"
+      - "Recent impact examples map cleanly"
+
+  compensation_fit:
+    prompt: "How likely is total compensation to meet expectation in LPA?"
+    high_score_signals:
+      - "Range published and >= minimum acceptable LPA"
+      - "Pay transparency or strong market alignment"
+      - "Variable pay/ESOP structure is reasonable"
+
+  growth_learning:
+    prompt: "Will this role meaningfully improve trajectory in 12-24 months?"
+    high_score_signals:
+      - "Ownership and technical depth"
+      - "Strong mentors / team quality indicators"
+      - "Exposure to scale, architecture, or high-leverage projects"
+
+  hiring_signal:
+    prompt: "How strong are signs of active and realistic hiring?"
+    high_score_signals:
+      - "Fresh posting / multiple related openings"
+      - "Clear JD with concrete outcomes"
+      - "Known recruiter or team visibility"
+
+  work_mode_location:
+    prompt: "How well does location/work mode fit candidate constraints?"
+    high_score_signals:
+      - "Remote/hybrid preference match"
+      - "City match or acceptable relocation"
+      - "Notice period and joining constraints feasible"
+
+  brand_stability:
+    prompt: "How credible and stable is the company environment?"
+    high_score_signals:
+      - "Healthy product/revenue/funding signals"
+      - "Reasonable attrition reputation"
+      - "Role not likely to be frozen quickly"
+
+  risk_red_flags:
+    prompt: "Are there warning signs reducing application quality?"
+    scoring_note: "Higher score means lower risk."
+    high_score_signals:
+      - "No unrealistic wishlists for level"
+      - "No major mismatch in notice period expectations"
+      - "No suspicious compensation ambiguity"
+
+output_requirements:
+  must_include:
+    - "final_score"
+    - "dimension_scores"
+    - "apply_recommendation"
+    - "top_3_strengths"
+    - "top_3_risks"
+    - "interview_prep_angles"
+    - "compensation_notes_lpa"
