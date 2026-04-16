@@ -84,11 +84,6 @@ configurations.all {
     resolutionStrategy {
         force("androidx.core:core-ktx:1.13.1")
         force("androidx.core:core:1.13.1")
-        // LiteRT-LM may pull kotlin-stdlib 2.x; pin to compiler-compatible stdlib.
-        force("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
-        force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24")
-        force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.24")
-        force("org.jetbrains.kotlin:kotlin-reflect:1.9.24")
     }
 }
 
