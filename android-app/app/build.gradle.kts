@@ -106,6 +106,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20240303")
     implementation("org.codeshipping:llama-kotlin-android:0.1.0")
+    // Google AI Edge LiteRT-LM (Gemma on-device via .litertlm models)
+    implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
     implementation("androidx.activity:activity-ktx:1.9.1")
     implementation("androidx.browser:browser:1.8.0")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")

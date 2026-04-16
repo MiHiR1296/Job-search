@@ -446,6 +446,12 @@ private fun AiSetupTab(
                 colors = FilterChipDefaults.filterChipColors()
             )
             FilterChip(
+                selected = state.aiSetupModeDraft.equals("litert", ignoreCase = true),
+                onClick = { onModeChange("litert") },
+                label = { Text("Gemma (LiteRT)") },
+                colors = FilterChipDefaults.filterChipColors()
+            )
+            FilterChip(
                 selected = isApiMode,
                 onClick = { onModeChange("api") },
                 label = { Text("API mode") },
@@ -463,7 +469,15 @@ private fun AiSetupTab(
                 OutlinedTextField(
                     value = state.aiSetupLocalModelPathDraft,
                     onValueChange = onLocalModelPathChange,
-                    label = { Text("Local GGUF path") },
+                    label = {
+                        Text(
+                            if (state.aiSetupModeDraft.equals("litert", ignoreCase = true)) {
+                                "Gemma .litertlm path"
+                            } else {
+                                "Local GGUF path"
+                            }
+                        )
+                    },
                     modifier = Modifier.weight(1f),
                     enabled = !state.isImportingLocalModel,
                     singleLine = true
@@ -481,27 +495,40 @@ private fun AiSetupTab(
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "Use Pick file to choose a .gguf (Downloads, Files, Google Drive, etc.). The app copies it to private storage and sets the path—you can still edit the path manually. Presets below are common /sdcard paths.",
+                if (state.aiSetupModeDraft.equals("litert", ignoreCase = true)) {
+                    "Use Pick file to choose a .litertlm model (Gemma). If you pick from Drive/Files, the app may copy it to private storage. You can also point to a direct path if accessible."
+                } else {
+                    "Use Pick file to choose a .gguf (Downloads, Files, Google Drive, etc.). The app copies it to private storage and sets the path—you can still edit the path manually. Presets below are common /sdcard paths."
+                },
                 style = MaterialTheme.typography.bodySmall
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Quick local model presets", style = MaterialTheme.typography.titleSmall)
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(
-                    onClick = { onLocalModelPathChange("/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf") },
-                    label = { Text("1.5B Q4 (fast)") },
-                    colors = AssistChipDefaults.assistChipColors()
-                )
-                AssistChip(
-                    onClick = { onLocalModelPathChange("/sdcard/Download/qwen2.5-7b-instruct-q4_k_m.gguf") },
-                    label = { Text("7B Q4 (capable)") },
-                    colors = AssistChipDefaults.assistChipColors()
-                )
-                AssistChip(
-                    onClick = { onLocalModelPathChange("/sdcard/Download/qwen2.5-8b-instruct-q4_k_m.gguf") },
-                    label = { Text("8B Q4") },
-                    colors = AssistChipDefaults.assistChipColors()
+            if (!state.aiSetupModeDraft.equals("litert", ignoreCase = true)) {
+                Text("Quick local model presets", style = MaterialTheme.typography.titleSmall)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(
+                        onClick = { onLocalModelPathChange("/sdcard/Download/qwen2.5-1.5b-instruct-q4_k_m.gguf") },
+                        label = { Text("1.5B Q4 (fast)") },
+                        colors = AssistChipDefaults.assistChipColors()
+                    )
+                    AssistChip(
+                        onClick = { onLocalModelPathChange("/sdcard/Download/qwen2.5-7b-instruct-q4_k_m.gguf") },
+                        label = { Text("7B Q4 (capable)") },
+                        colors = AssistChipDefaults.assistChipColors()
+                    )
+                    AssistChip(
+                        onClick = { onLocalModelPathChange("/sdcard/Download/qwen2.5-8b-instruct-q4_k_m.gguf") },
+                        label = { Text("8B Q4") },
+                        colors = AssistChipDefaults.assistChipColors()
+                    )
+                }
+            } else {
+                Text("Gemma (LiteRT) notes", style = MaterialTheme.typography.titleSmall)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "Gemma uses .litertlm model files and runs via Google AI Edge LiteRT-LM. Start with a small model (≈1B/2B) for stability on 8GB RAM devices.",
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         } else {
